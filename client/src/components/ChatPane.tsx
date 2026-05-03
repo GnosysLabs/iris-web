@@ -412,7 +412,7 @@ function SiteCard({ url, preview }: { url: string; preview: LinkPreview }) {
 					className="h-24 w-24 object-cover shrink-0 bg-card/30"
 				/>
 			)}
-			<div className="min-w-0 py-2 pr-3 flex flex-col gap-0.5">
+			<div className={`min-w-0 py-3 pr-3 flex flex-col gap-1 ${preview.imageUrl ? "pl-0" : "pl-3"}`}>
 				{preview.siteName && (
 					<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 						{preview.favicon && (

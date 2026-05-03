@@ -3,7 +3,6 @@ import type { ChannelDirectoryEntry, Network } from "@iris-web/shared";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, RefreshCw, Hash, Search, Users } from "lucide-react";
 import type { ChannelListing } from "@/state/store";
 
@@ -86,7 +85,11 @@ export function ChannelBrowserSheet({ open, onOpenChange, network, listing, onRe
 					</Button>
 				</div>
 
-				<ScrollArea className="h-[400px] border-t">
+				{/* Plain overflow-y-auto — Radix's <ScrollArea> wraps its children
+				    in a table-cell-display element that doesn't constrain width,
+				    which lets long topic strings push the row past the modal
+				    edge and hide the Join button. */}
+				<div className="h-[400px] overflow-y-auto border-t">
 					{listing?.loading && (!listing.entries || listing.entries.length === 0) ? (
 						<EmptyMessage>
 							<Loader2 className="h-5 w-5 animate-spin" />
@@ -105,7 +108,7 @@ export function ChannelBrowserSheet({ open, onOpenChange, network, listing, onRe
 							))}
 						</div>
 					)}
-				</ScrollArea>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);
@@ -123,10 +126,10 @@ function ChannelRow({ entry, onJoin }: { entry: ChannelDirectoryEntry; onJoin: (
 					</span>
 				</div>
 				{entry.topic && (
-					<p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{entry.topic}</p>
+					<p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 break-words">{entry.topic}</p>
 				)}
 			</div>
-			<Button size="sm" variant="secondary" onClick={onJoin}>Join</Button>
+			<Button size="sm" variant="secondary" onClick={onJoin} className="shrink-0">Join</Button>
 		</div>
 	);
 }
