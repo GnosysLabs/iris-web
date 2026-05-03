@@ -378,14 +378,12 @@ const server = Bun.serve<SocketData, never>({
 				}
 
 				case "link:preview": {
+					// Fetch in the background and stream the result back
+					// when ready — don't block the WS message loop.
 					const url = msg.url;
-					console.log(`[link:preview] requested: ${url}`);
-					getLinkPreview(url).then(preview => {
-						console.log(`[link:preview] result: ${url} → kind=${preview.kind} title="${preview.title ?? ""}"`);
-						session.send({ type: "link:preview", url, preview });
-					}).catch(err => {
-						console.log(`[link:preview] error: ${url} → ${err.message}`);
-					});
+					getLinkPreview(url)
+						.then(preview => session.send({ type: "link:preview", url, preview }))
+						.catch(() => { /* preview is best-effort */ });
 					break;
 				}
 
