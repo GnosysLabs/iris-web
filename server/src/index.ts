@@ -41,26 +41,28 @@ const sessions = new Map<string, Session>();
 class Session {
 	readonly token: string;
 	readonly networks = new Map<string, NetworkSession>();
-	private socket: Bun.ServerWebSocket<SocketData> | null = null;
+	// Multiple WS may be attached to the same session (multi-tab, mac
+	// app + web app open simultaneously, etc.).  Broadcasting to all of
+	// them is the right behavior — killing the previous one on every
+	// new auth used to cause a thundering-herd reconnect loop, because
+	// each tab's 1.5s reconnect timer would keep racing the other.
+	private sockets = new Set<Bun.ServerWebSocket<SocketData>>();
 
 	constructor(token: string) { this.token = token; }
 
 	attach(socket: Bun.ServerWebSocket<SocketData>): void {
-		// If a previous WS for this session is still open (e.g. a stale
-		// tab), drop it cleanly so we don't double-broadcast.
-		if (this.socket && this.socket !== socket) {
-			try { this.socket.close(); } catch { /* ignore */ }
-		}
-		this.socket = socket;
+		this.sockets.add(socket);
 	}
 
 	detach(socket: Bun.ServerWebSocket<SocketData>): void {
-		if (this.socket === socket) this.socket = null;
+		this.sockets.delete(socket);
 	}
 
 	send(msg: ServerMessage): void {
-		if (!this.socket) return;
-		try { this.socket.send(JSON.stringify(msg)); } catch { /* ignore */ }
+		const payload = JSON.stringify(msg);
+		for (const sock of this.sockets) {
+			try { sock.send(payload); } catch { /* ignore */ }
+		}
 	}
 
 	exportInit(): ServerMessage {

@@ -16,3 +16,4 @@ irisweb-x64
 .vscode/
 .idea/
 .bun-tag
+*.tsbuildinfo

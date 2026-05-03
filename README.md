@@ -1,6 +1,8 @@
 # Iris IRC
 
-A modern, self-hostable IRC client. Browser-first, with a native macOS shell built on the same code.
+A modern, self-hostable IRC client.
+
+**Project site:** [iris.gnosyslabs.xyz](https://iris.gnosyslabs.xyz) &nbsp;·&nbsp; **Try it now:** [chat.gnosyslabs.xyz](https://chat.gnosyslabs.xyz)
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -29,8 +31,6 @@ A modern, self-hostable IRC client. Browser-first, with a native macOS shell bui
 The whole backend compiles to a **single static binary** with `bun build --compile`. No Docker required.
 
 ## Install (self-hosted)
-
-> **Just want to chat on a Mac?** Download the **native Iris.app** instead — see [Native macOS app](#native-macos-app) below. The tarballs below are for *running the iris-web server on your own Linux machine*, not for chatting on a Mac.
 
 Each release ships two prebuilt server binaries — pick the one for your Linux machine:
 
@@ -112,12 +112,6 @@ iris-web/
   client/     React SPA.  Talks WebSocket only — no IRC knowledge here.
   shared/     Protocol types for both ends.
 ```
-
-## Native macOS app
-
-A SwiftUI shell wrapping iris-web in a `WKWebView` ships separately at
-[github.com/GnosysLabs/iris](https://github.com/GnosysLabs/iris). Single-binary
-sidecar pattern — same web code, native window chrome, Sparkle auto-updates.
 
 ## License
 

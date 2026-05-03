@@ -50,10 +50,11 @@ export class Socket {
 			} catch { /* ignore garbage */ }
 		});
 
-		const onDown = () => {
+		const onDown = (reason: string) => {
 			if (this.ws !== ws) return;        // stale handler from a previous WS
 			this.ws = null;
 			if (this.closed) return;           // explicit teardown — don't reconnect
+			console.warn(`[iris-web] WS down (${reason}) — reconnecting in 1.5s`);
 			this.handlers.onStatus("closed");
 			if (this.reconnectTimer == null) {
 				this.reconnectTimer = window.setTimeout(() => {
@@ -62,8 +63,8 @@ export class Socket {
 				}, 1500);
 			}
 		};
-		ws.addEventListener("close", onDown);
-		ws.addEventListener("error", onDown);
+		ws.addEventListener("close", ev => onDown(`close code=${ev.code} reason=${ev.reason || "(none)"} clean=${ev.wasClean}`));
+		ws.addEventListener("error", () => onDown("error"));
 	}
 
 	send(msg: ClientMessage): void {

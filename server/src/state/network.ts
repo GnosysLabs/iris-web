@@ -436,10 +436,19 @@ export class NetworkSession {
 				// events instead — anything from `HistServ` is unwanted noise.
 				if (senderNick.toLowerCase() === "histserv") break;
 				const isChannel = /^[#&+!]/.test(c.target);
+				// Server-originated NOTICE/PRIVMSG (source kind = "server",
+				// e.g. "*** Notice -- foo" from irc.example.org itself)
+				// belongs in the console.  Without this we'd open a query
+				// buffer named after the hostname, which then sits next to
+				// the console (whose display name is also the hostname) —
+				// looks like a duplicate buffer to the user.
+				const fromServer = msg.source?.kind === "server" || !msg.source;
 				const conversationPartner = isFromUs ? c.target : senderNick;
 				const buf = isChannel
 					? this.openBuffer(this.bufferId(c.target), c.target, "channel")
-					: this.openBuffer(this.bufferId(conversationPartner), conversationPartner, "query");
+					: fromServer
+						? this.buffers.get(this.consoleBufferId())!
+						: this.openBuffer(this.bufferId(conversationPartner), conversationPartner, "query");
 
 				const { kind, text } = decodeCTCP(c.text, c.keyword === "NOTICE");
 				const timestamp = msg.tags["time"] && typeof msg.tags["time"] === "string"
