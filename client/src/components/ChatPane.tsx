@@ -107,7 +107,7 @@ export function ChatPane({
 
 function ChatHeader({ buffer, network }: { buffer: Buffer; network: Network }) {
 	return (
-		<header className="h-12 px-4 flex items-center gap-3 border-b bg-card/30">
+		<header className="h-12 px-4 flex items-center gap-3 border-b bg-muted/40 dark:bg-card/30">
 			<div className="min-w-0">
 				<div className="flex items-baseline gap-2">
 					<h1 className="font-semibold text-sm tracking-tight">
@@ -381,7 +381,7 @@ function LinkPreviewsBlock({ urls, previews }: { urls: string[]; previews: Map<s
 								src={preview.imageUrl}
 								alt=""
 								loading="lazy"
-								className="rounded-md border max-h-80 w-auto object-contain bg-card/30"
+								className="rounded-md border max-h-80 w-auto object-contain bg-muted/40 dark:bg-card/30"
 							/>
 						</a>
 					);
@@ -401,7 +401,7 @@ function SiteCard({ url, preview }: { url: string; preview: LinkPreview }) {
 			href={url}
 			target="_blank"
 			rel="noopener noreferrer nofollow"
-			className="flex gap-3 max-w-2xl rounded-md border bg-card/40 hover:bg-card/70 transition-colors
+			className="flex gap-3 max-w-2xl rounded-md border bg-muted/50 hover:bg-muted/80 dark:bg-card/40 dark:hover:bg-card/70 transition-colors
 			           overflow-hidden no-underline group"
 		>
 			{preview.imageUrl && (
@@ -409,7 +409,7 @@ function SiteCard({ url, preview }: { url: string; preview: LinkPreview }) {
 					src={preview.imageUrl}
 					alt=""
 					loading="lazy"
-					className="h-24 w-24 object-cover shrink-0 bg-card/30"
+					className="h-24 w-24 object-cover shrink-0 bg-muted/40 dark:bg-card/30"
 				/>
 			)}
 			<div className={`min-w-0 py-3 pr-3 flex flex-col gap-1 ${preview.imageUrl ? "pl-0" : "pl-3"}`}>
@@ -594,7 +594,7 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 	}
 
 	return (
-		<form onSubmit={submit} className="px-4 py-3 border-t bg-card/30 relative">
+		<form onSubmit={submit} className="px-4 py-3 border-t bg-muted/40 dark:bg-card/30 relative">
 			{showSlash && (
 				<SlashSuggestions
 					commands={slashSuggestions}
@@ -715,7 +715,7 @@ function MemberList({ members }: { members: Member[] }) {
 	const grouped = groupMembers(members);
 
 	return (
-		<aside className="w-48 shrink-0 bg-card/20">
+		<aside className="w-48 shrink-0 bg-muted/30 dark:bg-card/20">
 			<ScrollArea className="h-full">
 				<div className="py-2 px-2 space-y-3">
 					<div className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground px-2 py-1.5">

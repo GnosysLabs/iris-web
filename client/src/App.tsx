@@ -8,7 +8,7 @@ import { ConnectServerSheet } from "./components/ConnectServerSheet";
 import { ChannelBrowserSheet } from "./components/ChannelBrowserSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { Button } from "@/components/ui/button";
-import { Plus, MessagesSquare, Circle, Settings as SettingsIcon } from "lucide-react";
+import { Plus, MessagesSquare, Circle, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadSettings, saveSettings, type Settings } from "@/state/settings";
 
@@ -42,6 +42,14 @@ export default function App() {
 		saveSettings(next);
 	}
 
+	// Mirror the chosen theme onto <html> so Tailwind's `dark:` variant
+	// (and our `.dark` CSS-variable overrides) take effect.  Runs on every
+	// settings change including the initial load.
+	useEffect(() => {
+		const root = document.documentElement;
+		root.classList.toggle("dark", settings.theme === "dark");
+	}, [settings.theme]);
+
 	useEffect(() => {
 		const sock = new Socket({
 			onStatus: setSocketStatus,
@@ -64,6 +72,8 @@ export default function App() {
 		<div className="h-full flex flex-col">
 			<TopBar
 				status={socketStatus}
+				theme={settings.theme}
+				onToggleTheme={() => updateSettings({ ...settings, theme: settings.theme === "dark" ? "light" : "dark" })}
 				onAddNetwork={() => setShowAddSheet(true)}
 				onOpenSettings={() => setShowSettings(true)}
 			/>
@@ -180,9 +190,11 @@ export default function App() {
 }
 
 function TopBar({
-	status, onAddNetwork, onOpenSettings,
+	status, theme, onToggleTheme, onAddNetwork, onOpenSettings,
 }: {
 	status: SocketStatus;
+	theme: "light" | "dark";
+	onToggleTheme: () => void;
 	onAddNetwork: () => void;
 	onOpenSettings: () => void;
 }) {
@@ -207,6 +219,16 @@ function TopBar({
 				<Plus className="h-4 w-4" />
 				Connect to Server
 			</Button>
+			<Button
+				size="icon"
+				variant="ghost"
+				onClick={onToggleTheme}
+				title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+			>
+				{theme === "dark"
+					? <Sun className="h-4 w-4" />
+					: <Moon className="h-4 w-4" />}
+			</Button>
 			<Button size="icon" variant="ghost" onClick={onOpenSettings} title="Settings">
 				<SettingsIcon className="h-4 w-4" />
 			</Button>
@@ -221,7 +243,7 @@ function TopBar({
 		// `app-no-drag`.
 		return (
 			<header
-				className="relative h-12 flex items-center justify-end border-b bg-card/30 pr-4 app-drag-region"
+				className="relative h-12 flex items-center justify-end border-b bg-muted/40 dark:bg-card/30 pr-4 app-drag-region"
 				style={{ paddingLeft: 78 }}
 			>
 				<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -232,7 +254,7 @@ function TopBar({
 		);
 	}
 	return (
-		<header className="h-12 flex items-center justify-between px-4 border-b bg-card/30">
+		<header className="h-12 flex items-center justify-between px-4 border-b bg-muted/40 dark:bg-card/30">
 			{brand}
 			{actions}
 		</header>

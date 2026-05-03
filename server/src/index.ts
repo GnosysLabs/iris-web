@@ -81,6 +81,19 @@ class Session {
 		autoJoinChannels: string[];
 		autoConnect: boolean;
 	}): NetworkSession {
+		// Dedupe by hostname (case-insensitive).  Without this, hitting
+		// "Add Server" with a hostname that already exists in this session
+		// silently spawns a parallel network with a fresh UUID, and all
+		// the channel/DM history under the old UUID becomes orphaned to
+		// the user — they'd swear it had "disappeared" on reconnect.
+		// If a match exists, treat it as an Edit + Reconnect instead.
+		const wantedHost = opts.hostname.toLowerCase();
+		for (const existing of this.networks.values()) {
+			if (existing.config.hostname.toLowerCase() === wantedHost) {
+				this.editNetwork(existing.id, opts);
+				return existing;
+			}
+		}
 		const id = crypto.randomUUID();
 		store.saveNetwork({
 			id,

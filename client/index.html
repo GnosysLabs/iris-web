@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,23 @@
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&display=swap" />
+		<script>
+			// Set the theme class before React mounts so we don't flash
+			// the wrong palette for one frame.  Mirrors loadSettings() —
+			// stored choice wins; otherwise honor prefers-color-scheme.
+			(function () {
+				try {
+					var raw = localStorage.getItem("iris-web:settings");
+					var theme = null;
+					if (raw) { try { theme = (JSON.parse(raw) || {}).theme || null; } catch (e) {} }
+					if (!theme) {
+						theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+							? "light" : "dark";
+					}
+					if (theme === "dark") document.documentElement.classList.add("dark");
+				} catch (e) { document.documentElement.classList.add("dark"); }
+			})();
+		</script>
 	</head>
 	<body class="antialiased">
 		<div id="root"></div>

@@ -30,7 +30,7 @@ export function Sidebar({
 	onReconnectNetwork, onDisconnectNetwork, onEditNetwork, onBrowseChannels, onRemoveNetwork,
 }: Props) {
 	return (
-		<aside className="w-64 shrink-0 border-r bg-card/30">
+		<aside className="w-64 shrink-0 border-r bg-muted/40 dark:bg-card/30">
 			<ScrollArea className="h-full">
 				<div className="p-2 space-y-3">
 					{networks.length === 0 && (
