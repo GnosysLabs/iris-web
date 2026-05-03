@@ -638,6 +638,48 @@ export class NetworkSession {
 				break;
 			}
 
+			case "MODE": {
+				// Apply channel-MODE prefix changes (+o, +v, +q, etc.) to
+				// the in-memory member list and rebroadcast.  Without this
+				// ChanServ's `OP <chan>` is invisible to the UI — the
+				// member's prefixes never gain `@`, so they never get the
+				// op/owner crown next to their nick.
+				const target = c.target;
+				if (!target || !/^[#&+!]/.test(target)) break;
+				const buf = this.buffers.get(this.bufferId(target));
+				if (!buf) break;
+				const PREFIX_FOR: Record<string, string> = {
+					q: "~", a: "&", o: "@", h: "%", v: "+",
+				};
+				const ARG_BOTH = "ovhqaybeIk";   // takes arg on +/-
+				const ARG_PLUS = "lfjJ";         // takes arg on + only
+				const modeString = c.modeString ?? "";
+				const args = [...c.args];
+				let sign = "+";
+				const touched = new Set<string>();
+				for (const ch of modeString) {
+					if (ch === "+" || ch === "-") { sign = ch; continue; }
+					const consumesArg =
+						ARG_BOTH.includes(ch) ||
+						(sign === "+" && ARG_PLUS.includes(ch));
+					const arg = consumesArg ? args.shift() : undefined;
+					const prefix = PREFIX_FOR[ch];
+					if (!prefix || !arg) continue;
+					const member = buf.members.get(arg);
+					if (!member) continue;
+					const had = member.prefixes.includes(prefix);
+					let next = member.prefixes;
+					if (sign === "+" && !had) next = next + prefix;
+					else if (sign === "-" && had) next = next.split("").filter(p => p !== prefix).join("");
+					if (next !== member.prefixes) {
+						buf.members.set(arg, { ...member, prefixes: next });
+						touched.add(arg);
+					}
+				}
+				if (touched.size > 0) this.broadcastMembers(buf);
+				break;
+			}
+
 			case "BATCH": {
 				if (c.isStart) {
 					this.activeBatches.set(c.ref, {
