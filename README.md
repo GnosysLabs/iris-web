@@ -30,14 +30,34 @@ The whole backend compiles to a **single static binary** with `bun build --compi
 
 ## Install (self-hosted)
 
-The simplest path is the prebuilt binary + bundled client:
+Each release ships four prebuilt binaries — pick the one for your platform:
+
+| Your machine                                    | Tarball              |
+| ----------------------------------------------- | -------------------- |
+| Mac with Apple Silicon (M1 / M2 / M3 / M4)      | `darwin-arm64`       |
+| Mac with Intel CPU                              | `darwin-x64`         |
+| Linux on ARM (Raspberry Pi, AWS Graviton)       | `linux-arm64`        |
+| Linux on x86_64 (most VPS providers)            | `linux-x64`          |
+
+Not sure? Run `uname -sm` — `Darwin arm64` means Apple Silicon Mac, `Linux x86_64` means a typical Linux server.
+
+**One-liner that auto-detects + installs:**
 
 ```bash
-# Coming soon — for now, build from source (below).
-curl -L https://github.com/GnosysLabs/iris-web/releases/latest/download/iris-web-linux-x64.tar.gz | tar xz
-cd iris-web
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x64/')
+curl -L "https://github.com/GnosysLabs/iris-web/releases/latest/download/iris-web-${OS}-${ARCH}.tar.gz" | tar xz
+cd iris-web-${OS}-${ARCH}
 ./irisweb
 # open http://localhost:2002 in your browser
+```
+
+**Or pick the file manually** from the [latest release page](https://github.com/GnosysLabs/iris-web/releases/latest), download it, then:
+
+```bash
+tar xzf iris-web-*.tar.gz
+cd iris-web-*
+./irisweb
 ```
 
 For real deployment behind TLS, drop the binary next to a `Caddyfile`:
