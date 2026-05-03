@@ -26,6 +26,10 @@ export interface Network {
 	// We never echo the actual password back to the client — this flag
 	// is just so the UI can show "Saved" vs "Not set" in Edit Server.
 	hasSaslPassword: boolean;
+	// True after a successful SASL handshake.  Gated on hasSaslPassword
+	// in the UI — networks without saved creds aren't "supposed to" be
+	// identified, so we don't badge them as a problem.
+	identified: boolean;
 	// Whether the server should auto-connect this network on app launch.
 	// Default true; users can flip to false for "manual only" servers.
 	autoConnect: boolean;
@@ -109,7 +113,7 @@ export type ServerMessage =
 	| { type: "init"; networks: Network[] }
 	| { type: "network:added"; network: Network }
 	| { type: "network:removed"; networkId: NetworkId }
-	| { type: "network:status"; networkId: NetworkId; connected: boolean }
+	| { type: "network:status"; networkId: NetworkId; connected: boolean; identified?: boolean }
 	| { type: "buffer:opened"; buffer: Buffer }
 	| { type: "buffer:closed"; bufferId: BufferId }
 	| { type: "buffer:topic"; bufferId: BufferId; topic: string }

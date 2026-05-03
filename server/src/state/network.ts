@@ -238,9 +238,19 @@ export class NetworkSession {
 	/// only carries network/buffer shapes — not the message backlog.
 	replayHistory(): void {
 		for (const buf of this.buffers.values()) {
-			const history = store.loadRecentMessages(this.id, buf.name, 200, buf.id);
+			const limit = 200;
+			const history = store.loadRecentMessages(this.id, buf.name, limit, buf.id);
 			if (history.length > 0) {
 				this.emit({ type: "history", bufferId: buf.id, messages: history });
+			}
+			// Tell the client up front whether there's any older history
+			// behind what we just replayed.  Without this, the "Load older
+			// messages" button shows for every buffer until the user
+			// clicks it once and the server confirms there's nothing —
+			// jarring on small buffers (services, freshly-joined channels)
+			// where there genuinely never was a backlog.
+			if (history.length < limit) {
+				this.emit({ type: "history:older", bufferId: buf.id, messages: [], exhausted: true });
 			}
 		}
 	}
@@ -286,6 +296,7 @@ export class NetworkSession {
 			buffers: [...this.buffers.values()].map(b => b.export()),
 			autoJoinChannels: this.autoJoinChannels,
 			hasSaslPassword: !!this.config.saslPassword,
+			identified: this.conn.authenticatedViaSASL,
 			autoConnect: this.autoConnect,
 		};
 	}
@@ -406,13 +417,16 @@ export class NetworkSession {
 				`Check the NickServ password in Edit Server, then Reconnect.`,
 				"error");
 		}
+		this.emit({ type: "network:status", networkId: this.id, connected: this.connected, identified: ok });
 	}
 
 	private handleState(state: string, reason?: string): void {
 		const wasConnected = this.connected;
 		this.connected = state === "connected";
 		if (wasConnected !== this.connected) {
-			this.emit({ type: "network:status", networkId: this.id, connected: this.connected });
+			// On disconnect, reset identified — a fresh connect/reconnect
+			// re-runs SASL and will emit a new identified value if it works.
+			this.emit({ type: "network:status", networkId: this.id, connected: this.connected, identified: this.connected ? this.conn.authenticatedViaSASL : false });
 		}
 		if (state === "failed" || state === "disconnected") {
 			const detail = reason ? ` (${reason})` : "";
@@ -753,7 +767,7 @@ export class NetworkSession {
 			case Numeric.RPL_MYINFO:
 				this.systemLine(this.consoleBufferId(), params[params.length - 1] ?? "", "system");
 				// Also republish the (possibly renamed) network state.
-				this.emit({ type: "network:status", networkId: this.id, connected: true });
+				this.emit({ type: "network:status", networkId: this.id, connected: true, identified: this.conn.authenticatedViaSASL });
 				if (code === Numeric.RPL_WELCOME && !this.didAutoJoin) {
 					this.didAutoJoin = true;
 					this.maybeReclaimNick();
@@ -885,9 +899,15 @@ export class NetworkSession {
 		this.emit({ type: "buffer:opened", buffer: buf.export() });
 		// Replay recent persisted history into the client immediately so a
 		// freshly-opened buffer isn't blank.
-		const history = store.loadRecentMessages(this.id, name, 200, id);
+		const limit = 200;
+		const history = store.loadRecentMessages(this.id, name, limit, id);
 		if (history.length > 0) {
 			this.emit({ type: "history", bufferId: id, messages: history });
+		}
+		// Same exhaustion hint as replayHistory — hide "Load older" up
+		// front for freshly-opened buffers with nothing further back.
+		if (history.length < limit) {
+			this.emit({ type: "history:older", bufferId: id, messages: [], exhausted: true });
 		}
 		return buf;
 	}

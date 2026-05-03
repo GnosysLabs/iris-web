@@ -186,7 +186,11 @@ function NetworkMenu({
 					<div className="flex flex-col gap-0.5">
 						<span className="text-xs font-semibold">{network.name}</span>
 						<span className="text-[10px] text-muted-foreground">
-							{network.connected ? "Connected" : "Disconnected"} · {network.nickname}
+							{network.connected
+								? network.hasSaslPassword && !network.identified
+									? `Connected · ${network.nickname} (not identified)`
+									: `Connected · ${network.nickname}`
+								: `Disconnected · ${network.nickname}`}
 						</span>
 					</div>
 				</DropdownMenuLabel>

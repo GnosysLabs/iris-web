@@ -105,7 +105,14 @@ export function reduce(state: AppState, action: Action): AppState {
 			const net = state.networks.get(msg.networkId);
 			if (!net) return state;
 			const networks = new Map(state.networks);
-			networks.set(net.id, { ...net, connected: msg.connected });
+			networks.set(net.id, {
+				...net,
+				connected: msg.connected,
+				// Only overwrite identified when the server explicitly sent
+				// it — otherwise keep whatever value we already had so a
+				// status ping doesn't accidentally clear the SASL badge.
+				identified: msg.identified === undefined ? net.identified : msg.identified,
+			});
 			return { ...state, networks };
 		}
 
