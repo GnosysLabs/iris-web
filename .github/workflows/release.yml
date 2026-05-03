@@ -45,7 +45,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+          # Server-only targets.  Mac users who want a chat app should
+          # download Iris.app from its own distribution channel; the
+          # darwin builds below would confuse those users into thinking
+          # this is the desktop app.  Self-hosting iris-web ON a Mac
+          # is rare; those folks can build from source if they want to.
+          for target in linux-arm64 linux-x64; do
             echo "::group::Building $target"
             outdir="dist/iris-web-$target"
             mkdir -p "$outdir"

@@ -30,35 +30,28 @@ The whole backend compiles to a **single static binary** with `bun build --compi
 
 ## Install (self-hosted)
 
-Each release ships four prebuilt binaries — pick the one for your platform:
+> **Just want to chat on a Mac?** Download the **native Iris.app** instead — see [Native macOS app](#native-macos-app) below. The tarballs below are for *running the iris-web server on your own Linux machine*, not for chatting on a Mac.
 
-| Your machine                                    | Tarball              |
+Each release ships two prebuilt server binaries — pick the one for your Linux machine:
+
+| Your server                                     | Tarball              |
 | ----------------------------------------------- | -------------------- |
-| Mac with Apple Silicon (M1 / M2 / M3 / M4)      | `darwin-arm64`       |
-| Mac with Intel CPU                              | `darwin-x64`         |
-| Linux on ARM (Raspberry Pi, AWS Graviton)       | `linux-arm64`        |
 | Linux on x86_64 (most VPS providers)            | `linux-x64`          |
+| Linux on ARM (Raspberry Pi, AWS Graviton)       | `linux-arm64`        |
 
-Not sure? Run `uname -sm` — `Darwin arm64` means Apple Silicon Mac, `Linux x86_64` means a typical Linux server.
+Not sure? Run `uname -m` — `x86_64` means linux-x64, `aarch64` means linux-arm64.
 
 **One-liner that auto-detects + installs:**
 
 ```bash
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x64/')
-curl -L "https://github.com/GnosysLabs/iris-web/releases/latest/download/iris-web-${OS}-${ARCH}.tar.gz" | tar xz
-cd iris-web-${OS}-${ARCH}
+curl -L "https://github.com/GnosysLabs/iris-web/releases/latest/download/iris-web-linux-${ARCH}.tar.gz" | tar xz
+cd iris-web-linux-${ARCH}
 ./irisweb
-# open http://localhost:2002 in your browser
+# open http://localhost:2002 in your browser (or proxy via Caddy/nginx)
 ```
 
-**Or pick the file manually** from the [latest release page](https://github.com/GnosysLabs/iris-web/releases/latest), download it, then:
-
-```bash
-tar xzf iris-web-*.tar.gz
-cd iris-web-*
-./irisweb
-```
+**Or pick the file manually** from the [latest release page](https://github.com/GnosysLabs/iris-web/releases/latest).
 
 For real deployment behind TLS, drop the binary next to a `Caddyfile`:
 
