@@ -40,8 +40,6 @@ jobs:
         run: bun run --cwd client build
 
       - name: Compile binaries + package tarballs
-        env:
-          VERSION: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -50,6 +48,12 @@ jobs:
           # darwin builds below would confuse those users into thinking
           # this is the desktop app.  Self-hosting iris-web ON a Mac
           # is rare; those folks can build from source if they want to.
+          #
+          # Tarball names are version-FREE on purpose — the version
+          # lives in the URL path (.../releases/v0.1.0/iris-web-linux-x64.tar.gz
+          # vs .../releases/latest/download/iris-web-linux-x64.tar.gz).
+          # A stable filename means the README's curl-install one-liner
+          # works against `/latest/` forever without a rewrite per bump.
           for target in linux-arm64 linux-x64; do
             echo "::group::Building $target"
             outdir="dist/iris-web-$target"
@@ -66,7 +70,7 @@ jobs:
             cp -R client/dist "$outdir/iris-web-client"
             cp README.md LICENSE "$outdir/"
 
-            tar -C dist -czf "dist/iris-web-${VERSION}-${target}.tar.gz" "iris-web-$target"
+            tar -C dist -czf "dist/iris-web-${target}.tar.gz" "iris-web-$target"
             echo "::endgroup::"
           done
           ls -lh dist/*.tar.gz
