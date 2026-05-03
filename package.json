@@ -1,0 +1,11 @@
+{
+  "name": "iris-web",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": ["server", "client", "shared"],
+  "scripts": {
+    "dev:server": "bun run --cwd server dev",
+    "dev:client": "bun run --cwd client dev",
+    "build:client": "bun run --cwd client build"
+  }
+}
