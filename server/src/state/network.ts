@@ -12,6 +12,10 @@ import * as store from "../db";
 let messageSeq = 0;
 function nextMessageId(): string { return `${Date.now()}-${++messageSeq}`; }
 
+function escapeRegExp(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export type Emitter = (msg: ServerMessage) => void;
 
 export class NetworkSession {
@@ -42,6 +46,11 @@ export class NetworkSession {
 	// support the bot-mode convention — we then fall back to the
 	// name-based heuristic in the sidebar.
 	private botModeChar = "";
+	// Local mirror of our own away state — set when the user runs /away,
+	// cleared on /away with no reason or on disconnect.  Surfaced to the
+	// client via `network:status` so the topbar can show an "away" pip.
+	private isAway = false;
+	private awayMessage: string | undefined = undefined;
 
 	constructor(
 		id: string,
@@ -64,22 +73,27 @@ export class NetworkSession {
 		// Console buffer for raw server notices and system messages.
 		this.openBuffer(this.consoleBufferId(), config.hostname, "console");
 
-		// Hydrate saved buffers so the user sees them in the sidebar
-		// (with their history) immediately on reconnect.  Rules:
-		//   - Channels: only hydrate ones explicitly in auto-join.
-		//     If the user took a channel off the auto-join list they
-		//     don't want it cluttering the sidebar after restart.
-		//   - Queries (DMs): always hydrate.  Users close DMs with
-		//     the X — anything still saved is intentional.
-		const autoJoinLower = new Set(this.autoJoinChannels.map(c => {
-			const t = c.trim();
-			const named = t.startsWith("#") || t.startsWith("&") ? t : `#${t}`;
-			return named.toLowerCase();
-		}));
+		// Hydrate ALL saved buffers so the sidebar shows everything the
+		// user has any history for.  Hydration is purely an in-memory
+		// + UI affordance — it does NOT trigger an IRC `JOIN`; that's
+		// gated separately by `autoJoinChannels` in `start()`.  Skipping
+		// channel hydration here used to silently hide history when a
+		// user reconnected to a server with `autoJoinChannels = []`.
 		for (const persisted of store.loadBuffersForNetwork(id)) {
-			if (persisted.kind === "console") continue;
-			if (persisted.kind === "channel" && !autoJoinLower.has(persisted.name.toLowerCase())) continue;
+			if (persisted.kind === "console") continue;  // already created above
 			this.hydrateBuffer(persisted.name, persisted.kind, persisted.topic ?? "");
+		}
+		// Self-heal: if any saved messages reference a buffer name that
+		// has no row in `buffers` (we've seen this happen — root cause
+		// still TBD), recreate the buffer row + hydrate it.  Without
+		// this, the messages exist on disk but the sidebar has no entry
+		// to render them under.
+		for (const orphan of store.loadOrphanBufferNames(id)) {
+			const kind: BufferKind = orphan.name === store.networkHostname(id)
+				? "console"
+				: /^[#&+!]/.test(orphan.name) ? "channel" : "query";
+			store.saveBuffer(id, orphan.name, kind, "");
+			this.hydrateBuffer(orphan.name, kind, "");
 		}
 	}
 
@@ -183,20 +197,19 @@ export class NetworkSession {
 		return this.activeBatches.get(ref)?.type === "chathistory";
 	}
 
-	/// Close a buffer.  For channels this issues a PART (the existing
-	/// PART handler then deletes the buffer when the server echoes it
-	/// back); for query buffers there's no IRC equivalent of "leave a
-	/// DM" — we just delete the buffer + its persisted messages and
-	/// emit `buffer:closed` so the sidebar drops it.
+	/// Close a buffer.  X means "I'm done with this" — same semantics
+	/// for channels and queries: PART on the wire (channels only), drop
+	/// the buffer + its persisted messages.  Without this, a closed
+	/// channel's history would linger in the DB and the buffer would
+	/// re-hydrate on next restart, which is exactly the "I left this,
+	/// why is it back?" surprise we want to avoid.
 	closeBuffer(bufferId: string): void {
 		const buf = this.buffers.get(bufferId);
 		if (!buf) return;
 		if (buf.kind === "console") return;
-		if (buf.kind === "channel") {
+		if (buf.kind === "channel" && this.connected) {
 			try { this.conn.sendRaw(cmd.part(buf.name)); } catch { /* ignore */ }
-			return;
 		}
-		// query buffer — purge from disk + memory.
 		store.deleteBufferAndMessages(this.id, buf.name);
 		this.buffers.delete(bufferId);
 		this.emit({ type: "buffer:closed", bufferId });
@@ -297,6 +310,8 @@ export class NetworkSession {
 			autoJoinChannels: this.autoJoinChannels,
 			hasSaslPassword: !!this.config.saslPassword,
 			identified: this.conn.authenticatedViaSASL,
+			isAway: this.isAway,
+			awayMessage: this.awayMessage,
 			autoConnect: this.autoConnect,
 		};
 	}
@@ -379,6 +394,36 @@ export class NetworkSession {
 						});
 					}
 					break;
+				case "AWAY": {
+					// `/away`        → clear (back)
+					// `/away foo bar` → away with reason "foo bar"
+					const reason = rest.trim();
+					if (reason.length === 0) {
+						this.conn.sendRaw("AWAY");
+						this.isAway = false;
+						this.awayMessage = undefined;
+					} else {
+						this.conn.sendRaw(`AWAY :${reason}`);
+						this.isAway = true;
+						this.awayMessage = reason;
+					}
+					this.emit({
+						type: "network:status",
+						networkId: this.id,
+						connected: this.connected,
+						identified: this.conn.authenticatedViaSASL,
+						isAway: this.isAway,
+						awayMessage: this.awayMessage,
+					});
+					break;
+				}
+				case "QUERY": {
+					// Open a DM buffer for the given nick without sending
+					// any traffic.  Pure client-side affordance.
+					const target = rest.split(" ")[0]?.trim();
+					if (target) this.openBuffer(this.bufferId(target), target, "query");
+					break;
+				}
 				case "RAW":
 					if (rest) this.conn.sendRaw(rest);
 					break;
@@ -424,9 +469,21 @@ export class NetworkSession {
 		const wasConnected = this.connected;
 		this.connected = state === "connected";
 		if (wasConnected !== this.connected) {
-			// On disconnect, reset identified — a fresh connect/reconnect
-			// re-runs SASL and will emit a new identified value if it works.
-			this.emit({ type: "network:status", networkId: this.id, connected: this.connected, identified: this.connected ? this.conn.authenticatedViaSASL : false });
+			// On disconnect, reset identified + away — a fresh connect
+			// re-runs SASL and the user's away state doesn't survive
+			// the IRC session.
+			if (!this.connected) {
+				this.isAway = false;
+				this.awayMessage = undefined;
+			}
+			this.emit({
+				type: "network:status",
+				networkId: this.id,
+				connected: this.connected,
+				identified: this.connected ? this.conn.authenticatedViaSASL : false,
+				isAway: this.isAway,
+				awayMessage: this.awayMessage,
+			});
 		}
 		if (state === "failed" || state === "disconnected") {
 			const detail = reason ? ` (${reason})` : "";
@@ -479,6 +536,16 @@ export class NetworkSession {
 					? this.activeBatches.get(batchRef)?.type === "chathistory"
 					: false;
 
+				// Highlight when our nick appears as a discrete word in
+				// the body — case-insensitive, must be on a word boundary so
+				// "iris" doesn't fire on "irishman".  Don't highlight our
+				// own messages or DMs (the whole DM is already a highlight
+				// by virtue of being addressed to us).
+				const myNick = this.conn.nickname;
+				const isHighlight = !isFromUs
+					&& buf.kind === "channel"
+					&& myNick.length > 0
+					&& new RegExp(`(^|[^A-Za-z0-9_\\[\\]\\\\\`{}|^-])${escapeRegExp(myNick)}([^A-Za-z0-9_\\[\\]\\\\\`{}|^-]|$)`, "i").test(text);
 				const message: Message = {
 					id: nextMessageId(),
 					bufferId: buf.id,
@@ -487,6 +554,7 @@ export class NetworkSession {
 					text,
 					kind,
 					isSelf: isFromUs,
+					isHighlight,
 				};
 
 				if (inChathistory) {
@@ -556,6 +624,12 @@ export class NetworkSession {
 					break;
 				}
 				if (isUs) {
+					// Mirror the X-button semantics: when WE leave a
+					// channel, drop the buffer + history entirely.  The
+					// buffer list is the canonical "channels I'm in" —
+					// keeping ghost buffer rows around would cause them
+					// to re-hydrate (and now re-JOIN) on next restart.
+					store.deleteBufferAndMessages(this.id, buf.name);
 					this.buffers.delete(buf.id);
 					this.emit({ type: "buffer:closed", bufferId: buf.id });
 				} else {
@@ -635,6 +709,26 @@ export class NetworkSession {
 				buf.topic = c.topic ?? "";
 				store.saveBuffer(this.id, buf.name, buf.kind, buf.topic);
 				this.emit({ type: "buffer:topic", bufferId: buf.id, topic: buf.topic });
+				break;
+			}
+
+			case "AWAY": {
+				// Per away-notify (IRCv3): bare AWAY = back, AWAY :reason = away.
+				// Updates the member entry in every channel we share with
+				// this user so the UI can grey them out / show a tooltip.
+				const isAway = c.message != null && c.message.length > 0;
+				const message = isAway ? c.message : undefined;
+				let touched = false;
+				for (const buf of this.buffers.values()) {
+					if (buf.kind !== "channel") continue;
+					const m = buf.members.get(senderNick);
+					if (!m) continue;
+					if (m.isAway === isAway && m.awayMessage === message) continue;
+					buf.members.set(senderNick, { ...m, isAway, awayMessage: message });
+					this.broadcastMembers(buf);
+					touched = true;
+				}
+				if (touched) { /* nothing else to do */ }
 				break;
 			}
 
@@ -792,7 +886,11 @@ export class NetworkSession {
 				const member = buf.members.get(nick);
 				if (!member) break;
 				const isBot = !!this.botModeChar && flags.includes(this.botModeChar);
-				const updated = { ...member, user, host, isBot };
+				// WHO flags: H = Here (present), G = Gone (away).  We use
+				// these as the seed for `isAway` until the away-notify cap
+				// pushes a real-time update.
+				const isAway = flags.includes("G");
+				const updated = { ...member, user, host, isBot, isAway };
 				buf.members.set(nick, updated);
 				// Don't broadcast on every WHO line — flush at ENDOFWHO.
 				break;
@@ -813,18 +911,16 @@ export class NetworkSession {
 				if (code === Numeric.RPL_WELCOME && !this.didAutoJoin) {
 					this.didAutoJoin = true;
 					this.maybeReclaimNick();
-					for (const channel of this.autoJoinChannels) {
-						const target = channel.trim();
-						if (!target) continue;
-						const named = target.startsWith("#") || target.startsWith("&") ? target : `#${target}`;
-						try { this.conn.sendRaw(cmd.join(named)); } catch { /* ignore */ }
-					}
-					const skip = new Set(this.autoJoinChannels.map(c =>
-						(c.startsWith("#") || c.startsWith("&") ? c : `#${c}`).toLowerCase()));
+					// Buffer list is canonical: rejoin every channel buffer
+					// + request chathistory for every query buffer.  X
+					// removes the buffer entirely, so anything still here
+					// is something the user wants to be in.
 					for (const buf of this.buffers.values()) {
-						if (buf.kind === "console") continue;
-						if (skip.has(buf.name.toLowerCase())) continue;
-						this.requestChathistoryLatest(buf.name);
+						if (buf.kind === "channel") {
+							try { this.conn.sendRaw(cmd.join(buf.name)); } catch { /* ignore */ }
+						} else if (buf.kind === "query") {
+							this.requestChathistoryLatest(buf.name);
+						}
 					}
 				}
 				break;

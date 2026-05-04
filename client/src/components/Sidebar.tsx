@@ -9,7 +9,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Hash, User, Bot, Megaphone, Server, MoreHorizontal, Circle, RefreshCw, Trash2, Plug, X, KeyRound, ListPlus } from "lucide-react";
+import { Hash, User, Bot, Megaphone, Server, MoreHorizontal, Circle, RefreshCw, Trash2, Plug, X, KeyRound, ListPlus, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -23,11 +23,12 @@ interface Props {
 	onEditNetwork: (id: string) => void;
 	onBrowseChannels: (id: string) => void;
 	onRemoveNetwork: (id: string) => void;
+	onSetAway: (id: string) => void;
 }
 
 export function Sidebar({
 	networks, activeBufferId, unread, onSelectBuffer, onCloseBuffer,
-	onReconnectNetwork, onDisconnectNetwork, onEditNetwork, onBrowseChannels, onRemoveNetwork,
+	onReconnectNetwork, onDisconnectNetwork, onEditNetwork, onBrowseChannels, onRemoveNetwork, onSetAway,
 }: Props) {
 	return (
 		<aside className="w-64 shrink-0 border-r bg-muted/40 dark:bg-card/30">
@@ -49,6 +50,7 @@ export function Sidebar({
 							onEdit={() => onEditNetwork(net.id)}
 							onBrowse={() => onBrowseChannels(net.id)}
 							onRemove={() => onRemoveNetwork(net.id)}
+							onSetAway={() => onSetAway(net.id)}
 						/>
 					))}
 				</div>
@@ -58,7 +60,7 @@ export function Sidebar({
 }
 
 function NetworkGroup({
-	network, activeBufferId, unread, onSelectBuffer, onCloseBuffer, onReconnect, onDisconnect, onEdit, onBrowse, onRemove,
+	network, activeBufferId, unread, onSelectBuffer, onCloseBuffer, onReconnect, onDisconnect, onEdit, onBrowse, onRemove, onSetAway,
 }: {
 	network: Network;
 	activeBufferId: BufferId | null;
@@ -70,6 +72,7 @@ function NetworkGroup({
 	onEdit: () => void;
 	onBrowse: () => void;
 	onRemove: () => void;
+	onSetAway: () => void;
 }) {
 	// Group buffers by kind so the sidebar shows Channels first, DMs
 	// below, and the network's Console buffer pinned to the bottom.
@@ -102,6 +105,7 @@ function NetworkGroup({
 					onEdit={onEdit}
 					onBrowse={onBrowse}
 					onRemove={onRemove}
+					onSetAway={onSetAway}
 				/>
 			</div>
 
@@ -159,7 +163,7 @@ function BufferSection({
 }
 
 function NetworkMenu({
-	network, onReconnect, onDisconnect, onEdit, onBrowse, onRemove,
+	network, onReconnect, onDisconnect, onEdit, onBrowse, onRemove, onSetAway,
 }: {
 	network: Network;
 	onReconnect: () => void;
@@ -167,6 +171,7 @@ function NetworkMenu({
 	onEdit: () => void;
 	onBrowse: () => void;
 	onRemove: () => void;
+	onSetAway: () => void;
 }) {
 	return (
 		<DropdownMenu>
@@ -210,6 +215,12 @@ function NetworkMenu({
 				<DropdownMenuItem onSelect={onBrowse} disabled={!network.connected}>
 					<ListPlus className="h-4 w-4" />
 					Browse Channels
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={onSetAway} disabled={!network.connected}>
+					{network.isAway
+						? <><Sun className="h-4 w-4" /> Mark me back</>
+						: <><Moon className="h-4 w-4" /> Set away…</>
+					}
 				</DropdownMenuItem>
 				<DropdownMenuItem onSelect={onEdit}>
 					<KeyRound className="h-4 w-4" />
@@ -281,11 +292,14 @@ function BufferRow({
 				<button
 					type="button"
 					onClick={(e) => { e.stopPropagation(); onClose(); }}
-					className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
+					// p-1 + -mr-1 widens the click target without nudging
+					// the row layout — matters because the icon-only `X`
+					// at h-3 was a fiddly target on hover.
+					className="p-1 -mr-1 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-secondary transition-opacity shrink-0"
 					title={kind === "channel" ? "Leave channel" : "Close conversation"}
 					aria-label={kind === "channel" ? "Leave channel" : "Close conversation"}
 				>
-					<X className="h-3 w-3" />
+					<X className="h-3.5 w-3.5" />
 				</button>
 			)}
 		</div>

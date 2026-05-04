@@ -55,13 +55,32 @@ const TYPING_TTL_MS = 6000;  // active expires after 6s of silence per spec
 
 export type Action =
 	| { type: "server"; msg: ServerMessage }
-	| { type: "select-buffer"; bufferId: BufferId | null };
+	| { type: "select-buffer"; bufferId: BufferId | null }
+	// Optimistic local close — drop the buffer from state the moment the
+	// user clicks X, without waiting for the server's `buffer:closed`
+	// round-trip.  Avoids the "click 4 times because nothing happened"
+	// problem on slow links.  The eventual server `buffer:closed` is a
+	// no-op since the buffer is already gone.
+	| { type: "close-buffer"; bufferId: BufferId };
 
 export function reduce(state: AppState, action: Action): AppState {
 	if (action.type === "select-buffer") {
 		const unread = new Set(state.unread);
 		if (action.bufferId) unread.delete(action.bufferId);
 		return { ...state, activeBufferId: action.bufferId, unread };
+	}
+
+	if (action.type === "close-buffer") {
+		const networks = new Map(state.networks);
+		for (const [id, net] of networks) {
+			networks.set(id, { ...net, buffers: net.buffers.filter(b => b.id !== action.bufferId) });
+		}
+		const messages = new Map(state.messages);
+		messages.delete(action.bufferId);
+		const unread = new Set(state.unread);
+		unread.delete(action.bufferId);
+		const activeBufferId = state.activeBufferId === action.bufferId ? null : state.activeBufferId;
+		return { ...state, networks, messages, unread, activeBufferId };
 	}
 
 	const msg = action.msg;
@@ -108,10 +127,12 @@ export function reduce(state: AppState, action: Action): AppState {
 			networks.set(net.id, {
 				...net,
 				connected: msg.connected,
-				// Only overwrite identified when the server explicitly sent
-				// it — otherwise keep whatever value we already had so a
-				// status ping doesn't accidentally clear the SASL badge.
+				// Only overwrite identified/away when the server explicitly
+				// sent them — otherwise keep whatever value we already had
+				// so a status ping doesn't accidentally clear them.
 				identified: msg.identified === undefined ? net.identified : msg.identified,
+				isAway: msg.isAway === undefined ? net.isAway : msg.isAway,
+				awayMessage: msg.isAway === undefined ? net.awayMessage : msg.awayMessage,
 			});
 			return { ...state, networks };
 		}

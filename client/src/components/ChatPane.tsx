@@ -7,7 +7,14 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { nickColor } from "@/lib/nickColor";
 import { matchSlash, type SlashCommand } from "@/lib/slashCommands";
-import { Crown, User } from "lucide-react";
+import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Settings } from "@/state/settings";
 
 // Names that are conventionally services across IRC networks — same set
@@ -93,12 +100,18 @@ export function ChatPane({
 					joinableChannels={joinable}
 					directoryLoading={channelDirectory?.loading ?? false}
 					onLoadDirectory={onLoadDirectory}
+					memberNicks={buffer.kind === "channel" ? buffer.members.map(m => m.nickname) : []}
 				/>
 			</div>
 			{showMembers && (
 				<>
 					<Separator orientation="vertical" />
-					<MemberList members={buffer.members} />
+					<MemberList
+						members={buffer.members}
+						channel={buffer.name}
+						myNick={network.nickname}
+						onSend={onSend}
+					/>
 				</>
 			)}
 		</div>
@@ -297,7 +310,12 @@ function MessageRow({
 	}
 
 	return (
-		<div className="text-sm leading-relaxed flex gap-3">
+		<div className={cn(
+			"text-sm leading-relaxed flex gap-3 -mx-4 px-4",
+			// Highlight: a soft amber accent bar on the left + matching
+			// tinted background.  Subtle in dark, just-visible in light.
+			message.isHighlight && "bg-amber-500/10 border-l-2 border-amber-500/70 pl-[14px]",
+		)}>
 			<span className="text-muted-foreground font-mono text-xs pt-0.5 shrink-0">{time}</span>
 			<span className={cn("font-semibold shrink-0", fromColor)}>{message.from}</span>
 			<div className="break-words min-w-0 flex-1">
@@ -461,7 +479,13 @@ interface ComposerProps {
 	joinableChannels: string[];
 	directoryLoading: boolean;
 	onLoadDirectory: () => void;
+	memberNicks: string[];
 }
+
+// Match an in-progress @mention at the cursor position.  Captures the
+// `@`-trigger and the partial nick; only fires when @ is at start-of-line
+// or follows whitespace (so `you@example.com` doesn't pop the picker).
+const MENTION_RE = /(^|\s)@([A-Za-z0-9_\[\]\\`{}|^-]*)$/;
 
 // Typing throttle: at most one "active" every TYPING_RATE_MS while
 // composing; "done" fires TYPING_IDLE_MS after the last keystroke,
@@ -469,9 +493,13 @@ interface ComposerProps {
 const TYPING_RATE_MS = 3000;
 const TYPING_IDLE_MS = 5000;
 
-function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLoading, onLoadDirectory }: ComposerProps) {
+function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLoading, onLoadDirectory, memberNicks }: ComposerProps) {
 	const [text, setText] = useState("");
+	const [cursor, setCursor] = useState(0);
 	const [highlight, setHighlight] = useState(0);
+	// Snapshot of `text` at the moment the user hit Escape on the mention
+	// popup.  Suppresses the popup until the input changes again.
+	const [mentionDismissedFor, setMentionDismissedFor] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const lastActiveSentRef = useRef(0);
 	const idleTimerRef = useRef<number | null>(null);
@@ -518,8 +546,24 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 			.slice(0, 30)
 		: [];
 
-	const showSlash = !channelMode && slashSuggestions.length > 0;
+	// Mention mode: @<partial> at the cursor position.  Suppressed if a
+	// slash command or /join completion is already active.
+	const beforeCursor = text.slice(0, cursor);
+	const mentionMatch = MENTION_RE.exec(beforeCursor);
+	const mentionPrefix = mentionMatch?.[2] ?? null;
+	const mentionMode = mentionPrefix !== null
+		&& !channelMode
+		&& slashSuggestions.length === 0
+		&& mentionDismissedFor !== text;
+	const mentionSuggestions = mentionMode
+		? memberNicks
+			.filter(n => n.toLowerCase().startsWith(mentionPrefix.toLowerCase()))
+			.slice(0, 8)
+		: [];
+
+	const showSlash = !channelMode && !mentionMode && slashSuggestions.length > 0;
 	const showChannels = channelMode;
+	const showMentions = mentionMode && mentionSuggestions.length > 0;
 
 	// When the user enters /join mode and we have nothing to suggest,
 	// kick off a directory load so suggestions populate without them
@@ -543,6 +587,28 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 		inputRef.current?.focus();
 	}
 
+	function completeMention(nick: string) {
+		// Replace the in-progress `@partial` token with the bare nick.
+		// At line start, suffix with ":" so the message reads
+		// `nick: hello` (Slack/Discord-ish, but also the IRC convention
+		// for addressing someone).  Mid-line just inserts the nick.
+		if (!mentionMatch) return;
+		const leading = mentionMatch[1] ?? "";
+		const before = text.slice(0, mentionMatch.index + leading.length);
+		const after = text.slice(cursor);
+		const suffix = before.length === 0 ? ": " : " ";
+		const inserted = `${nick}${suffix}`;
+		const next = before + inserted + after;
+		setText(next);
+		// Position the cursor right after the inserted text (incl. suffix).
+		const nextCursor = before.length + inserted.length;
+		setCursor(nextCursor);
+		requestAnimationFrame(() => {
+			inputRef.current?.focus();
+			inputRef.current?.setSelectionRange(nextCursor, nextCursor);
+		});
+	}
+
 	function submit(e?: React.FormEvent) {
 		e?.preventDefault();
 		if (!text.trim()) return;
@@ -552,7 +618,10 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 	}
 
 	function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-		const items = showSlash ? slashSuggestions.length : showChannels ? channelSuggestions.length : 0;
+		const items = showSlash ? slashSuggestions.length
+			: showChannels ? channelSuggestions.length
+			: showMentions ? mentionSuggestions.length
+			: 0;
 		if (items === 0) return;
 
 		if (e.key === "ArrowDown") {
@@ -569,9 +638,10 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 			e.preventDefault();
 			if (showSlash && slashSuggestions[highlight]) completeSlash(slashSuggestions[highlight]!);
 			else if (showChannels && channelSuggestions[highlight]) completeChannel(channelSuggestions[highlight]!);
+			else if (showMentions && mentionSuggestions[highlight]) completeMention(mentionSuggestions[highlight]!);
 			return;
 		}
-		if (e.key === "Enter" && (showSlash || (showChannels && channelSuggestions[highlight]))) {
+		if (e.key === "Enter" && (showSlash || showMentions || (showChannels && channelSuggestions[highlight]))) {
 			// Channel suggestions: Enter selects-and-submits to actually fire /join.
 			if (showChannels && channelSuggestions[highlight]) {
 				e.preventDefault();
@@ -585,9 +655,21 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 				completeSlash(slashSuggestions[highlight]!);
 				return;
 			}
+			if (showMentions && mentionSuggestions[highlight]) {
+				e.preventDefault();
+				completeMention(mentionSuggestions[highlight]!);
+				return;
+			}
 		}
 		if (e.key === "Escape") {
 			e.preventDefault();
+			if (showMentions) {
+				// Dismiss the popup but leave the partial @mention in the
+				// input so the user can keep editing or just send it.
+				setMentionDismissedFor(text);
+				setHighlight(0);
+				return;
+			}
 			setText("");
 			return;
 		}
@@ -612,6 +694,14 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 					onHover={setHighlight}
 				/>
 			)}
+			{showMentions && (
+				<MentionSuggestions
+					nicks={mentionSuggestions}
+					highlight={highlight}
+					onPick={completeMention}
+					onHover={setHighlight}
+				/>
+			)}
 			<Input
 				ref={inputRef}
 				placeholder={placeholder}
@@ -619,16 +709,49 @@ function Composer({ onSend, onTyping, placeholder, joinableChannels, directoryLo
 				onChange={e => {
 					const next = e.target.value;
 					setText(next);
+					setCursor(e.target.selectionStart ?? next.length);
 					if (next.trim().length === 0 || next.startsWith("/")) {
 						fireTypingDone();
 					} else {
 						fireTypingActive();
 					}
 				}}
+				onKeyUp={e => setCursor(e.currentTarget.selectionStart ?? text.length)}
+				onClick={e => setCursor(e.currentTarget.selectionStart ?? text.length)}
 				onKeyDown={onKeyDown}
 				autoFocus
 			/>
 		</form>
+	);
+}
+
+function MentionSuggestions({
+	nicks, highlight, onPick, onHover,
+}: {
+	nicks: string[];
+	highlight: number;
+	onPick: (nick: string) => void;
+	onHover: (idx: number) => void;
+}) {
+	return (
+		<div className="absolute bottom-full left-4 right-4 mb-2 max-h-64 overflow-auto
+		                bg-popover text-popover-foreground rounded-md border shadow-md py-1 z-10">
+			{nicks.map((nick, i) => (
+				<button
+					key={nick}
+					type="button"
+					onMouseEnter={() => onHover(i)}
+					onMouseDown={(e) => { e.preventDefault(); onPick(nick); }}
+					className={cn(
+						"w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer",
+						i === highlight ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
+					)}
+				>
+					<User className="h-3.5 w-3.5 text-muted-foreground" />
+					<span className={nickColor(nick)}>{nick}</span>
+				</button>
+			))}
+		</div>
 	);
 }
 
@@ -711,8 +834,17 @@ function ChannelSuggestions({
 	);
 }
 
-function MemberList({ members }: { members: Member[] }) {
+function MemberList({
+	members, channel, myNick, onSend,
+}: {
+	members: Member[];
+	channel: string;
+	myNick: string;
+	onSend: (text: string) => void;
+}) {
 	const grouped = groupMembers(members);
+	const me = members.find(m => m.nickname.toLowerCase() === myNick.toLowerCase());
+	const myRank = rankOf(me?.prefixes ?? "");
 
 	return (
 		<aside className="w-48 shrink-0 bg-muted/30 dark:bg-card/20">
@@ -735,7 +867,15 @@ function MemberList({ members }: { members: Member[] }) {
 									</span>
 								</div>
 								{list.map(m => (
-									<MemberRow key={m.nickname} member={m} group={group} />
+									<MemberRow
+										key={m.nickname}
+										member={m}
+										group={group}
+										channel={channel}
+										isMe={m.nickname.toLowerCase() === myNick.toLowerCase()}
+										myRank={myRank}
+										onSend={onSend}
+									/>
 								))}
 							</div>
 						);
@@ -746,22 +886,108 @@ function MemberList({ members }: { members: Member[] }) {
 	);
 }
 
-function MemberRow({ member, group }: { member: Member; group: MemberGroup }) {
+function MemberRow({
+	member, group, channel, isMe, myRank, onSend,
+}: {
+	member: Member;
+	group: MemberGroup;
+	channel: string;
+	isMe: boolean;
+	myRank: number;
+	onSend: (text: string) => void;
+}) {
+	const targetRank = rankOf(member.prefixes);
+	// Only show the privileged actions when we're an op-or-better AND we
+	// outrank the target.  Halfop (rank 2) can voice/devoice/kick lower
+	// ranks but not op/deop; only ops (rank 3) and above can op/deop.
+	const canVoice = myRank >= 2 && myRank > targetRank && !isMe;
+	const canKick  = myRank >= 2 && myRank > targetRank && !isMe;
+	const canOp    = myRank >= 3 && myRank > targetRank && !isMe;
+
 	return (
-		<div className="px-2 py-1 text-sm truncate flex items-center gap-2 hover:bg-secondary/50 rounded-sm">
-			<span className={cn(
-				"w-3 flex items-center justify-center shrink-0",
-				group.tone,
-			)}>
-				{group.id === "owner" || group.id === "op"
-					? <Crown className="h-3 w-3" fill="currentColor" />
-					: group.id === "regular"
-						? <User className="h-3 w-3" />
-						: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
-			</span>
-			<span className="text-foreground/90 truncate">{member.nickname}</span>
-		</div>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					className={cn(
+						"w-full px-2 py-1 text-sm truncate flex items-center gap-2 hover:bg-secondary/50 rounded-sm text-left",
+						member.isAway && "opacity-50",
+					)}
+					title={member.isAway && member.awayMessage ? `Away: ${member.awayMessage}` : undefined}
+				>
+					<span className={cn(
+						"w-3 flex items-center justify-center shrink-0",
+						group.tone,
+					)}>
+						{group.id === "owner" || group.id === "op"
+							? <Crown className="h-3 w-3" fill="currentColor" />
+							: group.id === "regular"
+								? <User className="h-3 w-3" />
+								: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
+					</span>
+					<span className="text-foreground/90 truncate">{member.nickname}</span>
+					{member.isAway && <Moon className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />}
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="w-44">
+				<DropdownMenuItem onSelect={() => onSend(`/whois ${member.nickname}`)}>
+					<Info className="h-4 w-4" /> Whois
+				</DropdownMenuItem>
+				{!isMe && (
+					<DropdownMenuItem onSelect={() => onSend(`/query ${member.nickname}`)}>
+						<MessageSquare className="h-4 w-4" /> Open DM
+					</DropdownMenuItem>
+				)}
+				{(canOp || canVoice || canKick) && <DropdownMenuSeparator />}
+				{canOp && (
+					targetRank >= 3
+						? <DropdownMenuItem onSelect={() => onSend(`/mode ${channel} -o ${member.nickname}`)}>
+								<ShieldOff className="h-4 w-4" /> Take op
+							</DropdownMenuItem>
+						: <DropdownMenuItem onSelect={() => onSend(`/mode ${channel} +o ${member.nickname}`)}>
+								<ShieldCheck className="h-4 w-4" /> Give op
+							</DropdownMenuItem>
+				)}
+				{canVoice && (
+					targetRank >= 1
+						? <DropdownMenuItem onSelect={() => onSend(`/mode ${channel} -v ${member.nickname}`)}>
+								<MicOff className="h-4 w-4" /> Take voice
+							</DropdownMenuItem>
+						: <DropdownMenuItem onSelect={() => onSend(`/mode ${channel} +v ${member.nickname}`)}>
+								<Mic className="h-4 w-4" /> Give voice
+							</DropdownMenuItem>
+				)}
+				{canKick && (
+					<>
+						<DropdownMenuItem
+							className="text-destructive focus:text-destructive"
+							onSelect={() => onSend(`/kick ${channel} ${member.nickname}`)}
+						>
+							<UserMinus className="h-4 w-4" /> Kick
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-destructive focus:text-destructive"
+							onSelect={() => onSend(`/mode ${channel} +b ${member.nickname}!*@*`)}
+						>
+							<Ban className="h-4 w-4" /> Ban
+						</DropdownMenuItem>
+					</>
+				)}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
+}
+
+// Rank ordering for member-list permissions.  Higher = more powerful.
+// Mirrors the visual MEMBER_GROUPS list but as a numeric scale so we can
+// compare "I outrank target" cleanly.
+function rankOf(prefixes: string): number {
+	if (prefixes.includes("~")) return 5; // owner
+	if (prefixes.includes("&")) return 4; // admin
+	if (prefixes.includes("@")) return 3; // op
+	if (prefixes.includes("%")) return 2; // halfop
+	if (prefixes.includes("+")) return 1; // voiced
+	return 0;
 }
 
 interface MemberGroup {

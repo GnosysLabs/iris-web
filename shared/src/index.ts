@@ -30,6 +30,10 @@ export interface Network {
 	// in the UI — networks without saved creds aren't "supposed to" be
 	// identified, so we don't badge them as a problem.
 	identified: boolean;
+	// True when we've sent /away to the server.  Surfaces in the topbar
+	// so users can see their own away state at a glance.
+	isAway: boolean;
+	awayMessage?: string;
 	// Whether the server should auto-connect this network on app launch.
 	// Default true; users can flip to false for "manual only" servers.
 	autoConnect: boolean;
@@ -56,6 +60,10 @@ export interface Member {
 	user?: string;           // ident, populated by userhost-in-names / WHO
 	host?: string;           // populated by userhost-in-names / WHO
 	isBot?: boolean;         // populated when ISUPPORT BOT=X is set and member has +X
+	// Set when away-notify negotiated and the user is currently away.
+	// awayMessage is what they typed into /away (often empty).
+	isAway?: boolean;
+	awayMessage?: string;
 }
 
 export interface ChannelDirectoryEntry {
@@ -118,7 +126,7 @@ export type ServerMessage =
 	| { type: "init"; networks: Network[] }
 	| { type: "network:added"; network: Network }
 	| { type: "network:removed"; networkId: NetworkId }
-	| { type: "network:status"; networkId: NetworkId; connected: boolean; identified?: boolean }
+	| { type: "network:status"; networkId: NetworkId; connected: boolean; identified?: boolean; isAway?: boolean; awayMessage?: string }
 	| { type: "buffer:opened"; buffer: Buffer }
 	| { type: "buffer:closed"; bufferId: BufferId }
 	| { type: "buffer:topic"; bufferId: BufferId; topic: string }

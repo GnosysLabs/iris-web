@@ -40,7 +40,6 @@ export function ConnectServerSheet({ open, onOpenChange, mode = "create", seed, 
 	const [useTLS, setUseTLS] = useState(true);
 	const [nickname, setNickname] = useState("");
 	const [saslPassword, setSaslPassword] = useState("");
-	const [autoJoin, setAutoJoin] = useState("");
 	const [autoConnect, setAutoConnect] = useState(true);
 
 	// Re-seed only when the sheet TRANSITIONS to open.  The parent
@@ -55,25 +54,19 @@ export function ConnectServerSheet({ open, onOpenChange, mode = "create", seed, 
 		setUseTLS(seed?.useTLS ?? true);
 		setNickname(seed?.nickname ?? "");
 		setSaslPassword("");
-		setAutoJoin((seed?.autoJoinChannels ?? []).join(" "));
 		setAutoConnect(seed?.autoConnect ?? true);
 	}, [open]);
 
 	function submit(e: React.FormEvent) {
 		e.preventDefault();
 		if (!hostname || !nickname) return;
-		const channels = autoJoin
-			.split(/[,\s]+/)
-			.map(s => s.trim())
-			.filter(Boolean)
-			.map(s => s.startsWith("#") || s.startsWith("&") ? s : `#${s}`);
 		onSubmit({
 			hostname: hostname.trim(),
 			port: Number(port) || (useTLS ? 6697 : 6667),
 			useTLS,
 			nickname: nickname.trim(),
 			saslPassword: saslPassword || undefined,
-			autoJoinChannels: channels,
+			autoJoinChannels: [],  // legacy field; the buffer list is the source of truth now
 			autoConnect,
 		});
 	}
@@ -140,18 +133,6 @@ export function ConnectServerSheet({ open, onOpenChange, mode = "create", seed, 
 							placeholder={passwordPlaceholder}
 							value={saslPassword}
 							onChange={e => setSaslPassword(e.target.value)}
-						/>
-					</div>
-
-					<div className="space-y-2">
-						<div className="flex items-baseline justify-between">
-							<Label htmlFor="autojoin">Auto-join Channels</Label>
-							<span className="text-[10px] uppercase tracking-wider text-muted-foreground">Optional</span>
-						</div>
-						<Input
-							id="autojoin"
-							value={autoJoin}
-							onChange={e => setAutoJoin(e.target.value)}
 						/>
 					</div>
 

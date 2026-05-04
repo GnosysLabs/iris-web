@@ -117,6 +117,7 @@ function parseCommand(head: string, params: string[]): IRCCommand {
 			return { keyword: "JOIN", channels, keys: params[1]?.split(",") };
 		}
 		case "PART":   return { keyword: "PART", channel: params[0] ?? "", reason: params[1] };
+		case "AWAY":   return { keyword: "AWAY", message: params[0] };
 		case "QUIT":   return { keyword: "QUIT", reason: params[0] };
 		case "NICK":   return { keyword: "NICK", nick: params[0] ?? "" };
 		case "TOPIC":  return { keyword: "TOPIC", channel: params[0] ?? "", topic: params[1] };

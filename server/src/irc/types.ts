@@ -14,6 +14,7 @@ export type IRCCommand =
 	// joiner isn't logged in to a NickServ account.
 	| { keyword: "JOIN"; channels: string[]; keys?: string[]; account?: string; realname?: string }
 	| { keyword: "PART"; channel: string; reason?: string }
+	| { keyword: "AWAY"; message?: string }
 	| { keyword: "QUIT"; reason?: string }
 	| { keyword: "NICK"; nick: string }
 	| { keyword: "TOPIC"; channel: string; topic?: string }

@@ -218,6 +218,30 @@ export function loadBuffersForNetwork(networkId: NetworkId): Pick<Buffer, "name"
 	return rows.map(r => ({ name: r.name, kind: r.kind, topic: r.topic }));
 }
 
+const orphanBufferNamesStmt = db.prepare(`
+	SELECT DISTINCT m.buffer_name AS name
+	FROM messages m
+	WHERE m.network_id = ?
+	  AND NOT EXISTS (
+	    SELECT 1 FROM buffers b
+	    WHERE b.network_id = m.network_id AND b.name = m.buffer_name
+	  )
+`);
+
+/// Find buffer names that have persisted messages but no `buffers` row.
+/// Used at hydrate time to self-heal cases where a buffer record was
+/// dropped but its message history survived (we've seen this — root
+/// cause TBD).
+export function loadOrphanBufferNames(networkId: NetworkId): { name: string }[] {
+	return orphanBufferNamesStmt.all(networkId) as { name: string }[];
+}
+
+const networkHostnameStmt = db.prepare("SELECT hostname FROM networks WHERE id = ?");
+export function networkHostname(networkId: NetworkId): string {
+	const row = networkHostnameStmt.get(networkId) as { hostname: string } | undefined;
+	return row?.hostname ?? "";
+}
+
 // ─── Messages ───────────────────────────────────────────────────────────
 
 const insertMessageStmt = db.prepare(`

@@ -7,6 +7,7 @@ import { ChatPane } from "./components/ChatPane";
 import { ConnectServerSheet } from "./components/ConnectServerSheet";
 import { ChannelBrowserSheet } from "./components/ChannelBrowserSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
+import { AwaySheet } from "./components/AwaySheet";
 import { Button } from "@/components/ui/button";
 import { Plus, MessagesSquare, Circle, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export default function App() {
 	const [showAddSheet, setShowAddSheet] = useState(false);
 	const [editingNetworkId, setEditingNetworkId] = useState<string | null>(null);
 	const [browsingNetworkId, setBrowsingNetworkId] = useState<string | null>(null);
+	const [awayNetworkId, setAwayNetworkId] = useState<string | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 	const [settings, setSettings] = useState<Settings>(() => loadSettings());
 	const [, forceTick] = useState(0);
@@ -83,12 +85,27 @@ export default function App() {
 					activeBufferId={state.activeBufferId}
 					unread={state.unread}
 					onSelectBuffer={id => dispatch({ type: "select-buffer", bufferId: id })}
-					onCloseBuffer={id => send({ type: "buffer:close", bufferId: id })}
+					onCloseBuffer={id => {
+						// Drop locally first so the row vanishes immediately;
+						// the server confirmation is just a follow-up.
+						dispatch({ type: "close-buffer", bufferId: id });
+						send({ type: "buffer:close", bufferId: id });
+					}}
 					onReconnectNetwork={id => send({ type: "network:reconnect", networkId: id })}
 					onDisconnectNetwork={id => send({ type: "network:disconnect", networkId: id })}
 					onEditNetwork={id => setEditingNetworkId(id)}
 					onBrowseChannels={id => setBrowsingNetworkId(id)}
 					onRemoveNetwork={id => send({ type: "network:remove", networkId: id })}
+					onSetAway={id => {
+						const net = state.networks.get(id);
+						if (!net) return;
+						if (net.isAway) {
+							const consoleBuf = net.buffers.find(b => b.kind === "console");
+							if (consoleBuf) send({ type: "input", bufferId: consoleBuf.id, text: "/away" });
+						} else {
+							setAwayNetworkId(id);
+						}
+					}}
 				/>
 				<main className="flex-1 min-w-0">
 					{activeBuffer && activeNetwork ? (
@@ -138,6 +155,21 @@ export default function App() {
 				onOpenChange={setShowSettings}
 				settings={settings}
 				onChange={updateSettings}
+			/>
+
+			<AwaySheet
+				open={awayNetworkId != null}
+				onOpenChange={(o) => { if (!o) setAwayNetworkId(null); }}
+				networkName={awayNetworkId ? state.networks.get(awayNetworkId)?.name ?? "" : ""}
+				onSubmit={(reason) => {
+					if (!awayNetworkId) return;
+					const net = state.networks.get(awayNetworkId);
+					const consoleBuf = net?.buffers.find(b => b.kind === "console");
+					if (consoleBuf) {
+						send({ type: "input", bufferId: consoleBuf.id, text: `/away ${reason}` });
+					}
+					setAwayNetworkId(null);
+				}}
 			/>
 
 			<ChannelBrowserSheet
