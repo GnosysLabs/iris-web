@@ -118,7 +118,7 @@ function NetworkGroup({
 
 			<BufferSection title="Channels" buffers={channelBuffers}
 				activeBufferId={activeBufferId} unread={unread}
-				onSelectBuffer={onSelectBuffer} />
+				onSelectBuffer={onSelectBuffer} onCloseBuffer={onCloseBuffer} />
 			<BufferSection title="Direct Messages" buffers={queryBuffers}
 				activeBufferId={activeBufferId} unread={unread}
 				onSelectBuffer={onSelectBuffer} onCloseBuffer={onCloseBuffer} />
@@ -282,8 +282,8 @@ function BufferRow({
 					type="button"
 					onClick={(e) => { e.stopPropagation(); onClose(); }}
 					className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
-					title="Close conversation"
-					aria-label="Close conversation"
+					title={kind === "channel" ? "Leave channel" : "Close conversation"}
+					aria-label={kind === "channel" ? "Leave channel" : "Close conversation"}
 				>
 					<X className="h-3 w-3" />
 				</button>

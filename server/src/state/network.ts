@@ -848,11 +848,18 @@ export class NetworkSession {
 
 			case Numeric.RPL_LIST:
 				if (this.pendingChannelList) {
-					// Wire shape: `<me> <channel> <userCount> :<topic>`
+					// Wire shape: `<me> <channel> <userCount> :<topic>`.
+					// Some servers (rizon's UnrealIRCd at least) prepend
+					// the channel modes onto the topic field as `[+xyz] `.
+					// Pull that prefix out into its own `modes` field so
+					// the UI can show it as a separate badge.
+					const rawTopic = params[3] ?? "";
+					const modeMatch = rawTopic.match(/^\[\+([A-Za-z]+)\]\s*/);
 					this.pendingChannelList.push({
 						name: params[1] ?? "",
 						userCount: Number(params[2] ?? "0") || 0,
-						topic: params[3] ?? "",
+						modes: modeMatch?.[1] ?? "",
+						topic: modeMatch ? rawTopic.slice(modeMatch[0].length) : rawTopic,
 					});
 				}
 				break;

@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Hash, Search, Users } from "lucide-react";
 import type { ChannelListing } from "@/state/store";
+import { FormattedBody } from "./ChatPane";
+import { parseFormatted } from "@/lib/ircFormatting";
 
 interface Props {
 	open: boolean;
@@ -124,9 +126,19 @@ function ChannelRow({ entry, onJoin }: { entry: ChannelDirectoryEntry; onJoin: (
 					<span className="text-[11px] text-muted-foreground shrink-0">
 						{entry.userCount} {entry.userCount === 1 ? "user" : "users"}
 					</span>
+					{entry.modes && (
+						<span
+							className="font-mono text-[10px] px-1.5 py-px rounded border border-border text-muted-foreground shrink-0"
+							title={`Channel modes: +${entry.modes}`}
+						>
+							+{entry.modes}
+						</span>
+					)}
 				</div>
 				{entry.topic && (
-					<p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 break-words">{entry.topic}</p>
+					<p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 break-words">
+						<FormattedBody segments={parseFormatted(entry.topic)} />
+					</p>
 				)}
 			</div>
 			<Button size="sm" variant="secondary" onClick={onJoin} className="shrink-0">Join</Button>

@@ -308,7 +308,7 @@ function MessageRow({
 	);
 }
 
-function FormattedBody({ segments }: { segments: FormattedSegment[] }) {
+export function FormattedBody({ segments }: { segments: FormattedSegment[] }) {
 	return (
 		<>
 			{segments.map((seg, i) => {

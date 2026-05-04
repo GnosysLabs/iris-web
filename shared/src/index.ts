@@ -59,6 +59,11 @@ export interface Member {
 }
 
 export interface ChannelDirectoryEntry {
+	// Channel mode flags from RPL_LIST's `[+xyz]` prefix, separated out
+	// from the topic so the UI can show them as a small badge instead of
+	// polluting the topic line with server-injected metadata.  Empty
+	// string when the server doesn't include modes.
+	modes?: string;
 	name: string;
 	userCount: number;
 	topic: string;
