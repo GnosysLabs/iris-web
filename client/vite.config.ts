@@ -11,19 +11,16 @@ export default defineConfig({
 	},
 	server: {
 		port: 5173,
-		proxy: {
-			"/ws": {
-				target: "ws://localhost:2002",
-				ws: true,
-				rewriteWsOrigin: true,
-				// The upstream Bun server gets restarted constantly in
-				// dev (bun --watch).  When that happens the proxy's
-				// half-open socket logs a noisy stack trace — silence it,
-				// the browser auto-reconnects.
-				configure: (proxy) => {
-					proxy.on("error", () => { /* swallowed */ });
-				},
-			},
-		},
+		// Bind to all interfaces so the dev server is reachable from
+		// other devices on the LAN / Tailnet (e.g. testing the mobile
+		// layout from a phone via tailscale).
+		host: true,
+	},
+	// Inject the bun dev-server port at build time so the client's
+	// Socket can connect directly in dev mode.  Bypasses vite's WS
+	// proxy, which hangs the handshake on iOS Safari/Brave over a
+	// Tailnet — the proxy works for desktop but is unusable on iOS.
+	define: {
+		__WS_PORT__: JSON.stringify(process.env.IRIS_WEB_PORT ?? "2002"),
 	},
 });

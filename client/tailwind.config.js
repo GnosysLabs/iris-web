@@ -2,6 +2,10 @@
 export default {
 	darkMode: "class",
 	content: ["./index.html", "./src/**/*.{ts,tsx}"],
+	// Stop `hover:` styles applying on the FIRST tap on touch devices
+	// (iOS/Android treat the first tap as a "hover" before the real
+	// "click", making every sidebar item need two taps to activate).
+	future: { hoverOnlyWhenSupported: true },
 	theme: {
 		container: {
 			center: true,

@@ -8,8 +8,16 @@ const TOKEN_KEY = "iris-web:session-token";
 
 export type SocketStatus = "connecting" | "open" | "closed";
 
+export interface SocketDiagnostic {
+	status: SocketStatus;
+	lastReason?: string;     // why the last close happened
+	connectCount: number;    // total connect() calls since page load
+	openCount: number;       // total successful WS open events
+}
+
 export interface SocketHandlers {
 	onStatus(status: SocketStatus): void;
+	onDiagnostic?(d: SocketDiagnostic): void;
 	onMessage(msg: ServerMessage): void;
 }
 
@@ -23,20 +31,49 @@ export class Socket {
 	// reconnecting indefinitely, fighting the live instance over the
 	// shared session token on the server.
 	private closed = false;
+	private connectCount = 0;
+	private openCount = 0;
+	private status: SocketStatus = "connecting";
+	private lastReason?: string;
 
 	constructor(private handlers: SocketHandlers) {}
+
+	private setStatus(status: SocketStatus, reason?: string): void {
+		this.status = status;
+		if (reason !== undefined) this.lastReason = reason;
+		this.handlers.onStatus(status);
+		this.handlers.onDiagnostic?.({
+			status,
+			lastReason: this.lastReason,
+			connectCount: this.connectCount,
+			openCount: this.openCount,
+		});
+	}
 
 	connect(): void {
 		this.cleanup();
 		this.closed = false;
-		this.handlers.onStatus("connecting");
+		this.connectCount++;
+		this.setStatus("connecting");
 		const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-		const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
+		// In dev mode, talk directly to the bun server (port injected via
+		// vite `define` as `__WS_PORT__`).  Bypasses vite's WS proxy,
+		// which hangs the handshake on iOS Safari/Brave over a Tailnet.
+		// In prod the page and the WS share an origin (sidecar / nginx),
+		// so use window.location.host as before.
+		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+		// @ts-ignore — __WS_PORT__ is defined via vite `define`
+		const wsPort: string | undefined = typeof __WS_PORT__ === "string" ? __WS_PORT__ : undefined;
+		const wsHost = (import.meta.env?.DEV && wsPort)
+			? `${window.location.hostname}:${wsPort}`
+			: window.location.host;
+		const ws = new WebSocket(`${protocol}://${wsHost}/ws`);
 		this.ws = ws;
 
 		ws.addEventListener("open", () => {
 			if (this.closed) { ws.close(); return; }
-			this.handlers.onStatus("open");
+			this.openCount++;
+			this.setStatus("open");
 			const token = readToken();
 			this.send({ type: "auth", token: token ?? undefined });
 		});
@@ -55,7 +92,7 @@ export class Socket {
 			this.ws = null;
 			if (this.closed) return;           // explicit teardown — don't reconnect
 			console.warn(`[iris-web] WS down (${reason}) — reconnecting in 1.5s`);
-			this.handlers.onStatus("closed");
+			this.setStatus("closed", reason);
 			if (this.reconnectTimer == null) {
 				this.reconnectTimer = window.setTimeout(() => {
 					this.reconnectTimer = null;

@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { nickColor } from "@/lib/nickColor";
 import { matchSlash, type SlashCommand } from "@/lib/slashCommands";
-import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon, PanelLeft, Users } from "lucide-react";
+import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon, Users, MoreHorizontal } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -36,7 +36,6 @@ function isServiceLikeQuery(buffer: Buffer): boolean {
 export function ChatPane({
 	buffer, network, messages, channelDirectory, settings, typingNicks, historyExhausted,
 	linkPreviews, onSend, onLoadDirectory, onLoadMore, onTyping, onRequestLinkPreview,
-	onOpenSidebar,
 }: {
 	buffer: Buffer;
 	network: Network;
@@ -51,7 +50,6 @@ export function ChatPane({
 	onLoadMore: () => void;
 	onTyping: (state: "active" | "done") => void;
 	onRequestLinkPreview: (url: string) => void;
-	onOpenSidebar: () => void;
 }) {
 	const showMembers = buffer.kind === "channel" && buffer.members.length > 0;
 	const [membersOpenMobile, setMembersOpenMobile] = useState(false);
@@ -93,7 +91,6 @@ export function ChatPane({
 					buffer={buffer}
 					network={network}
 					showMembersToggle={showMembers}
-					onOpenSidebar={onOpenSidebar}
 					onToggleMembers={() => setMembersOpenMobile(o => !o)}
 				/>
 				<MessageList
@@ -138,24 +135,15 @@ export function ChatPane({
 }
 
 function ChatHeader({
-	buffer, network, showMembersToggle, onOpenSidebar, onToggleMembers,
+	buffer, network, showMembersToggle, onToggleMembers,
 }: {
 	buffer: Buffer;
 	network: Network;
 	showMembersToggle: boolean;
-	onOpenSidebar: () => void;
 	onToggleMembers: () => void;
 }) {
 	return (
 		<header className="h-12 px-2 sm:px-4 flex items-center gap-2 border-b bg-muted/40 dark:bg-card/30">
-			<button
-				type="button"
-				onClick={onOpenSidebar}
-				className="sm:hidden p-2 -ml-1 rounded hover:bg-secondary text-muted-foreground"
-				aria-label="Open sidebar"
-			>
-				<PanelLeft className="h-4 w-4" />
-			</button>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline gap-2">
 					<h1 className="font-semibold text-sm tracking-tight truncate">
@@ -325,7 +313,7 @@ function MessageRow({
 				"text-xs font-mono",
 				message.kind === "error" ? "text-destructive" : "text-muted-foreground",
 			)}>
-				<span className="opacity-50 mr-2">{time}</span>
+				<span className="opacity-50 mr-2 hidden sm:inline">{time}</span>
 				<FormattedBody segments={segments} />
 			</div>
 		);
@@ -334,7 +322,7 @@ function MessageRow({
 	if (message.kind === "join" || message.kind === "part" || message.kind === "quit" || message.kind === "nick") {
 		return (
 			<div className="text-xs text-muted-foreground/70 italic">
-				<span className="opacity-50 mr-2 font-mono">{time}</span>
+				<span className="opacity-50 mr-2 font-mono hidden sm:inline">{time}</span>
 				<span className="not-italic font-medium">{message.from}</span>{" "}
 				{message.text}
 			</div>
@@ -346,7 +334,7 @@ function MessageRow({
 	if (message.kind === "action") {
 		return (
 			<div className="text-sm">
-				<span className="text-muted-foreground mr-2 font-mono text-xs">{time}</span>
+				<span className="text-muted-foreground mr-2 font-mono text-xs hidden sm:inline">{time}</span>
 				<span className={cn("italic", fromColor)}>{message.from} </span>
 				<span className="italic"><FormattedBody segments={segments} /></span>
 				<LinkPreviewsBlock urls={urls} previews={linkPreviews} />
@@ -361,7 +349,7 @@ function MessageRow({
 			// tinted background.  Subtle in dark, just-visible in light.
 			message.isHighlight && "bg-amber-500/10 border-l-2 border-amber-500/70 pl-[14px]",
 		)}>
-			<span className="text-muted-foreground font-mono text-xs pt-0.5 shrink-0">{time}</span>
+			<span className="text-muted-foreground font-mono text-xs pt-0.5 shrink-0 hidden sm:inline">{time}</span>
 			<span className={cn("font-semibold shrink-0", fromColor)}>{message.from}</span>
 			<div className="break-words min-w-0 flex-1">
 				<div><FormattedBody segments={segments} /></div>
@@ -894,7 +882,7 @@ function MemberList({
 
 	return (
 		<aside className={cn(
-			"shrink-0 bg-background sm:bg-muted/30 sm:dark:bg-card/20 w-48 border-l sm:border-l-0",
+			"shrink-0 bg-background sm:bg-muted/30 sm:dark:bg-card/20 w-72 sm:w-48 border-l sm:border-l-0",
 			"fixed top-12 bottom-0 right-0 z-30 transition-transform sm:relative sm:top-0 sm:z-auto sm:translate-x-0",
 			mobileOpen ? "translate-x-0" : "translate-x-full",
 		)}>
@@ -955,33 +943,41 @@ function MemberRow({
 	const canOp    = myRank >= 3 && myRank > targetRank && !isMe;
 
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className={cn(
-						"w-full px-2 py-1 text-sm truncate flex items-center gap-2 hover:bg-secondary/50 rounded-sm text-left",
-						member.isAway && "opacity-50",
-					)}
-					title={member.isAway && member.awayMessage ? `Away: ${member.awayMessage}` : undefined}
-				>
-					<span className={cn(
-						"w-3 flex items-center justify-center shrink-0",
-						group.tone,
-					)}>
-						{group.id === "owner" || group.id === "op"
-							? <Crown className="h-3 w-3" fill="currentColor" />
-							: group.id === "regular"
-								? <User className="h-3 w-3" />
-								: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
-					</span>
-					<span className={cn("truncate", isMe ? "text-primary" : nickColor(member.nickname))}>
-						{member.nickname}
-					</span>
-					{member.isAway && <Moon className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />}
-				</button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="start" className="w-44">
+		<div
+			className={cn(
+				"group/member px-2 py-1 text-sm truncate flex items-center gap-2 rounded-sm",
+				member.isAway && "opacity-50",
+			)}
+			title={member.isAway && member.awayMessage ? `Away: ${member.awayMessage}` : undefined}
+		>
+			<span className={cn(
+				"w-3 flex items-center justify-center shrink-0",
+				group.tone,
+			)}>
+				{group.id === "owner" || group.id === "op"
+					? <Crown className="h-3 w-3" fill="currentColor" />
+					: group.id === "regular"
+						? <User className="h-3 w-3" />
+						: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
+			</span>
+			<span className={cn("truncate flex-1 min-w-0", isMe ? "text-primary" : nickColor(member.nickname))}>
+				{member.nickname}
+			</span>
+			{member.isAway && <Moon className="h-3 w-3 text-muted-foreground shrink-0" />}
+			<DropdownMenu>
+				{/* Explicit trigger button — keeps the row body inert so
+				    swiping to scroll the member list doesn't accidentally
+				    open the menu. */}
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						className="shrink-0 p-1 -mr-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground sm:opacity-0 sm:group-hover/member:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+						aria-label={`Actions for ${member.nickname}`}
+					>
+						<MoreHorizontal className="h-3.5 w-3.5" />
+					</button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" className="w-44">
 				<DropdownMenuItem onSelect={() => onSend(`/whois ${member.nickname}`)}>
 					<Info className="h-4 w-4" /> Whois
 				</DropdownMenuItem>
@@ -1025,8 +1021,9 @@ function MemberRow({
 						</DropdownMenuItem>
 					</>
 				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
 	);
 }
 

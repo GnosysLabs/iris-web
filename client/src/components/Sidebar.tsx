@@ -187,7 +187,7 @@ function NetworkMenu({
 				<Button
 					variant="ghost"
 					size="icon"
-					className="h-5 w-5 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+					className="h-5 w-5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 data-[state=open]:opacity-100"
 					onClick={(e) => e.stopPropagation()}
 				>
 					<MoreHorizontal className="h-3.5 w-3.5" />
@@ -303,7 +303,7 @@ function BufferRow({
 					// p-1 + -mr-1 widens the click target without nudging
 					// the row layout — matters because the icon-only `X`
 					// at h-3 was a fiddly target on hover.
-					className="p-1 -mr-1 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-secondary transition-opacity shrink-0"
+					className="p-1 -mr-1 rounded text-muted-foreground hover:text-destructive hover:bg-secondary transition-opacity shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
 					title={kind === "channel" ? "Leave channel" : "Close conversation"}
 					aria-label={kind === "channel" ? "Leave channel" : "Close conversation"}
 				>

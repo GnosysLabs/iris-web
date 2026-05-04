@@ -1,0 +1,17 @@
+{
+	"name": "Iris IRC",
+	"short_name": "Iris",
+	"description": "A modern, self-hostable IRC client.",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#0a0a0c",
+	"theme_color": "#0a0a0c",
+	"icons": [
+		{
+			"src": "/favicon.png",
+			"sizes": "1254x1254",
+			"type": "image/png",
+			"purpose": "any maskable"
+		}
+	]
+}

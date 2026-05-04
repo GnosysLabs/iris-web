@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { ClientMessage } from "@iris-web/shared";
-import { Socket, type SocketStatus } from "./lib/socket";
+import { Socket, type SocketStatus, type SocketDiagnostic } from "./lib/socket";
 import { activeTyping, findBuffer, findNetworkForBuffer, initialState, reduce } from "./state/store";
 import { Sidebar } from "./components/Sidebar";
 import { ChatPane } from "./components/ChatPane";
@@ -24,6 +24,7 @@ const IS_NATIVE_MAC = (() => {
 export default function App() {
 	const [state, dispatch] = useReducer(reduce, initialState);
 	const [socketStatus, setSocketStatus] = useState<SocketStatus>("connecting");
+	const [socketDiag, setSocketDiag] = useState<SocketDiagnostic>({ status: "connecting", connectCount: 0, openCount: 0 });
 	const [showAddSheet, setShowAddSheet] = useState(false);
 	const [editingNetworkId, setEditingNetworkId] = useState<string | null>(null);
 	const [browsingNetworkId, setBrowsingNetworkId] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export default function App() {
 	useEffect(() => {
 		const sock = new Socket({
 			onStatus: setSocketStatus,
+			onDiagnostic: setSocketDiag,
 			onMessage: msg => dispatch({ type: "server", msg }),
 		});
 		socketRef.current = sock;
@@ -83,6 +85,22 @@ export default function App() {
 				onOpenSettings={() => setShowSettings(true)}
 				onOpenSidebar={() => setSidebarOpenMobile(true)}
 			/>
+			{socketStatus !== "open" && (
+				<div className={cn(
+					"px-4 py-2 text-xs font-mono border-b",
+					socketStatus === "connecting"
+						? "bg-amber-500/10 text-amber-200 border-amber-500/30"
+						: "bg-destructive/10 text-destructive-foreground border-destructive/30"
+				)}>
+					<span className="font-semibold">
+						{socketStatus === "connecting" ? "Connecting" : "Disconnected"}
+					</span>
+					<span className="opacity-60"> · attempt #{socketDiag.connectCount} · opens #{socketDiag.openCount}</span>
+					{socketDiag.lastReason && (
+						<div className="opacity-80 break-words">{socketDiag.lastReason}</div>
+					)}
+				</div>
+			)}
 			<div className="flex-1 flex min-h-0 relative">
 				{/* Mobile backdrop for the sidebar drawer */}
 				{sidebarOpenMobile && (
@@ -146,7 +164,6 @@ export default function App() {
 								send({ type: "typing", bufferId: activeBuffer.id, state: typingState });
 							}}
 							onRequestLinkPreview={url => send({ type: "link:preview", url })}
-							onOpenSidebar={() => setSidebarOpenMobile(true)}
 						/>
 					) : (
 						<EmptyState
@@ -252,7 +269,7 @@ function TopBar({
 		: status === "connecting" ? "text-amber-500 fill-amber-500"
 		: "text-destructive fill-destructive";
 	const brand = (
-		<div className="flex items-baseline gap-2">
+		<div className="flex items-center gap-2">
 			{/* Mobile-only hamburger.  Hidden on the native Mac shell since
 			    the desktop layout doesn't collapse the sidebar. */}
 			{!IS_NATIVE_MAC && (
