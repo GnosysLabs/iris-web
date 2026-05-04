@@ -2,7 +2,7 @@
 
 A modern, self-hostable IRC client.
 
-**Project site:** [iris.gnosyslabs.xyz](https://iris.gnosyslabs.xyz) &nbsp;·&nbsp; **Try it now:** [chat.gnosyslabs.xyz](https://chat.gnosyslabs.xyz)
+**Project site:** [irisirc.chat](https://irisirc.chat) &nbsp;·&nbsp; **Try it now:** [client.irisirc.chat](https://client.irisirc.chat)
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
