@@ -9,7 +9,7 @@ import { ChannelBrowserSheet } from "./components/ChannelBrowserSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { AwaySheet } from "./components/AwaySheet";
 import { Button } from "@/components/ui/button";
-import { Plus, MessagesSquare, Circle, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
+import { Plus, MessagesSquare, Circle, Settings as SettingsIcon, Sun, Moon, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadSettings, saveSettings, type Settings } from "@/state/settings";
 
@@ -29,6 +29,9 @@ export default function App() {
 	const [browsingNetworkId, setBrowsingNetworkId] = useState<string | null>(null);
 	const [awayNetworkId, setAwayNetworkId] = useState<string | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
+	// Sidebar visibility on mobile only — desktop ignores this and shows
+	// the sidebar in normal flow.  Closes itself when a buffer is picked.
+	const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
 	const [settings, setSettings] = useState<Settings>(() => loadSettings());
 	const [, forceTick] = useState(0);
 	const socketRef = useRef<Socket | null>(null);
@@ -71,20 +74,33 @@ export default function App() {
 	const noNetworks = state.networks.size === 0;
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="h-dvh flex flex-col">
 			<TopBar
 				status={socketStatus}
 				theme={settings.theme}
 				onToggleTheme={() => updateSettings({ ...settings, theme: settings.theme === "dark" ? "light" : "dark" })}
 				onAddNetwork={() => setShowAddSheet(true)}
 				onOpenSettings={() => setShowSettings(true)}
+				onOpenSidebar={() => setSidebarOpenMobile(true)}
 			/>
-			<div className="flex-1 flex min-h-0">
+			<div className="flex-1 flex min-h-0 relative">
+				{/* Mobile backdrop for the sidebar drawer */}
+				{sidebarOpenMobile && (
+					<div
+						className="fixed inset-0 z-20 bg-black/40 sm:hidden"
+						onClick={() => setSidebarOpenMobile(false)}
+						aria-hidden
+					/>
+				)}
 				<Sidebar
 					networks={[...state.networks.values()]}
 					activeBufferId={state.activeBufferId}
 					unread={state.unread}
-					onSelectBuffer={id => dispatch({ type: "select-buffer", bufferId: id })}
+					mobileOpen={sidebarOpenMobile}
+					onSelectBuffer={id => {
+						dispatch({ type: "select-buffer", bufferId: id });
+						setSidebarOpenMobile(false);
+					}}
 					onCloseBuffer={id => {
 						// Drop locally first so the row vanishes immediately;
 						// the server confirmation is just a follow-up.
@@ -130,6 +146,7 @@ export default function App() {
 								send({ type: "typing", bufferId: activeBuffer.id, state: typingState });
 							}}
 							onRequestLinkPreview={url => send({ type: "link:preview", url })}
+							onOpenSidebar={() => setSidebarOpenMobile(true)}
 						/>
 					) : (
 						<EmptyState
@@ -222,19 +239,32 @@ export default function App() {
 }
 
 function TopBar({
-	status, theme, onToggleTheme, onAddNetwork, onOpenSettings,
+	status, theme, onToggleTheme, onAddNetwork, onOpenSettings, onOpenSidebar,
 }: {
 	status: SocketStatus;
 	theme: "light" | "dark";
 	onToggleTheme: () => void;
 	onAddNetwork: () => void;
 	onOpenSettings: () => void;
+	onOpenSidebar: () => void;
 }) {
 	const tone = status === "open" ? "text-emerald-500 fill-emerald-500"
 		: status === "connecting" ? "text-amber-500 fill-amber-500"
 		: "text-destructive fill-destructive";
 	const brand = (
 		<div className="flex items-baseline gap-2">
+			{/* Mobile-only hamburger.  Hidden on the native Mac shell since
+			    the desktop layout doesn't collapse the sidebar. */}
+			{!IS_NATIVE_MAC && (
+				<button
+					type="button"
+					onClick={onOpenSidebar}
+					className="sm:hidden p-2 -ml-1 rounded hover:bg-secondary text-muted-foreground self-center"
+					aria-label="Open sidebar"
+				>
+					<Menu className="h-5 w-5" />
+				</button>
+			)}
 			<img src="/favicon.png" alt="" className="h-6 w-6 self-center" />
 			<span className="font-display text-base font-semibold tracking-wide">Iris IRC</span>
 			{!IS_NATIVE_MAC && (
@@ -246,10 +276,14 @@ function TopBar({
 		</div>
 	);
 	const actions = (
-		<div className="flex items-center gap-2">
-			<Button size="sm" variant="outline" onClick={onAddNetwork}>
+		<div className="flex items-center gap-1 sm:gap-2">
+			<Button size="sm" variant="outline" onClick={onAddNetwork} className="hidden sm:inline-flex">
 				<Plus className="h-4 w-4" />
 				Connect to Server
+			</Button>
+			{/* Mobile: icon-only "add server" since the labeled button doesn't fit */}
+			<Button size="icon" variant="outline" onClick={onAddNetwork} className="sm:hidden" title="Connect to Server">
+				<Plus className="h-4 w-4" />
 			</Button>
 			<Button
 				size="icon"

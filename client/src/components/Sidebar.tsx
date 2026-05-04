@@ -16,6 +16,7 @@ interface Props {
 	networks: Network[];
 	activeBufferId: BufferId | null;
 	unread: Set<BufferId>;
+	mobileOpen: boolean;
 	onSelectBuffer: (id: BufferId) => void;
 	onCloseBuffer: (id: BufferId) => void;
 	onReconnectNetwork: (id: string) => void;
@@ -27,11 +28,18 @@ interface Props {
 }
 
 export function Sidebar({
-	networks, activeBufferId, unread, onSelectBuffer, onCloseBuffer,
+	networks, activeBufferId, unread, mobileOpen, onSelectBuffer, onCloseBuffer,
 	onReconnectNetwork, onDisconnectNetwork, onEditNetwork, onBrowseChannels, onRemoveNetwork, onSetAway,
 }: Props) {
 	return (
-		<aside className="w-64 shrink-0 border-r bg-muted/40 dark:bg-card/30">
+		<aside className={cn(
+			// Desktop (sm+): in-flow column with fixed width.
+			// Mobile: fixed overlay below the topbar (top-12 = topbar height),
+			// sliding in from the left.
+			"shrink-0 border-r bg-background sm:bg-muted/40 sm:dark:bg-card/30 w-64",
+			"fixed top-12 bottom-0 left-0 z-30 transition-transform sm:relative sm:top-0 sm:z-auto sm:translate-x-0",
+			mobileOpen ? "translate-x-0" : "-translate-x-full",
+		)}>
 			<ScrollArea className="h-full">
 				<div className="p-2 space-y-3">
 					{networks.length === 0 && (

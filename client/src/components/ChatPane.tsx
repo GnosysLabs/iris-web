@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { nickColor } from "@/lib/nickColor";
 import { matchSlash, type SlashCommand } from "@/lib/slashCommands";
-import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon } from "lucide-react";
+import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon, PanelLeft, Users } from "lucide-react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -36,6 +36,7 @@ function isServiceLikeQuery(buffer: Buffer): boolean {
 export function ChatPane({
 	buffer, network, messages, channelDirectory, settings, typingNicks, historyExhausted,
 	linkPreviews, onSend, onLoadDirectory, onLoadMore, onTyping, onRequestLinkPreview,
+	onOpenSidebar,
 }: {
 	buffer: Buffer;
 	network: Network;
@@ -50,8 +51,10 @@ export function ChatPane({
 	onLoadMore: () => void;
 	onTyping: (state: "active" | "done") => void;
 	onRequestLinkPreview: (url: string) => void;
+	onOpenSidebar: () => void;
 }) {
 	const showMembers = buffer.kind === "channel" && buffer.members.length > 0;
+	const [membersOpenMobile, setMembersOpenMobile] = useState(false);
 
 	// Channels the user could /join — directory minus the ones we're
 	// already in.  Empty until Browse Channels has been opened OR until
@@ -75,9 +78,24 @@ export function ChatPane({
 	);
 
 	return (
-		<div className="h-full flex">
+		<div className="h-full flex relative">
+			{/* Mobile backdrop for the members drawer.  Sidebar's backdrop
+			    lives in App.tsx so it can cover the chat area too. */}
+			{membersOpenMobile && (
+				<div
+					className="fixed inset-0 z-20 bg-black/40 sm:hidden"
+					onClick={() => setMembersOpenMobile(false)}
+					aria-hidden
+				/>
+			)}
 			<div className="flex-1 min-w-0 flex flex-col">
-				<ChatHeader buffer={buffer} network={network} />
+				<ChatHeader
+					buffer={buffer}
+					network={network}
+					showMembersToggle={showMembers}
+					onOpenSidebar={onOpenSidebar}
+					onToggleMembers={() => setMembersOpenMobile(o => !o)}
+				/>
 				<MessageList
 					bufferId={buffer.id}
 					messages={visibleMessages}
@@ -105,11 +123,12 @@ export function ChatPane({
 			</div>
 			{showMembers && (
 				<>
-					<Separator orientation="vertical" />
+					<Separator orientation="vertical" className="hidden sm:block" />
 					<MemberList
 						members={buffer.members}
 						channel={buffer.name}
 						myNick={network.nickname}
+						mobileOpen={membersOpenMobile}
 						onSend={onSend}
 					/>
 				</>
@@ -118,20 +137,46 @@ export function ChatPane({
 	);
 }
 
-function ChatHeader({ buffer, network }: { buffer: Buffer; network: Network }) {
+function ChatHeader({
+	buffer, network, showMembersToggle, onOpenSidebar, onToggleMembers,
+}: {
+	buffer: Buffer;
+	network: Network;
+	showMembersToggle: boolean;
+	onOpenSidebar: () => void;
+	onToggleMembers: () => void;
+}) {
 	return (
-		<header className="h-12 px-4 flex items-center gap-3 border-b bg-muted/40 dark:bg-card/30">
-			<div className="min-w-0">
+		<header className="h-12 px-2 sm:px-4 flex items-center gap-2 border-b bg-muted/40 dark:bg-card/30">
+			<button
+				type="button"
+				onClick={onOpenSidebar}
+				className="sm:hidden p-2 -ml-1 rounded hover:bg-secondary text-muted-foreground"
+				aria-label="Open sidebar"
+			>
+				<PanelLeft className="h-4 w-4" />
+			</button>
+			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline gap-2">
-					<h1 className="font-semibold text-sm tracking-tight">
+					<h1 className="font-semibold text-sm tracking-tight truncate">
 						{buffer.kind === "console" ? "Console" : buffer.name}
 					</h1>
-					<span className="text-xs text-muted-foreground">{network.name}</span>
+					<span className="text-xs text-muted-foreground truncate">{network.name}</span>
 				</div>
 				{buffer.topic && (
 					<p className="text-xs text-muted-foreground truncate">{buffer.topic}</p>
 				)}
 			</div>
+			{showMembersToggle && (
+				<button
+					type="button"
+					onClick={onToggleMembers}
+					className="sm:hidden p-2 -mr-1 rounded hover:bg-secondary text-muted-foreground"
+					aria-label="Toggle members"
+				>
+					<Users className="h-4 w-4" />
+				</button>
+			)}
 		</header>
 	);
 }
@@ -835,11 +880,12 @@ function ChannelSuggestions({
 }
 
 function MemberList({
-	members, channel, myNick, onSend,
+	members, channel, myNick, mobileOpen, onSend,
 }: {
 	members: Member[];
 	channel: string;
 	myNick: string;
+	mobileOpen: boolean;
 	onSend: (text: string) => void;
 }) {
 	const grouped = groupMembers(members);
@@ -847,7 +893,11 @@ function MemberList({
 	const myRank = rankOf(me?.prefixes ?? "");
 
 	return (
-		<aside className="w-48 shrink-0 bg-muted/30 dark:bg-card/20">
+		<aside className={cn(
+			"shrink-0 bg-background sm:bg-muted/30 sm:dark:bg-card/20 w-48 border-l sm:border-l-0",
+			"fixed top-12 bottom-0 right-0 z-30 transition-transform sm:relative sm:top-0 sm:z-auto sm:translate-x-0",
+			mobileOpen ? "translate-x-0" : "translate-x-full",
+		)}>
 			<ScrollArea className="h-full">
 				<div className="py-2 px-2 space-y-3">
 					<div className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground px-2 py-1.5">
@@ -925,7 +975,9 @@ function MemberRow({
 								? <User className="h-3 w-3" />
 								: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
 					</span>
-					<span className="text-foreground/90 truncate">{member.nickname}</span>
+					<span className={cn("truncate", isMe ? "text-primary" : nickColor(member.nickname))}>
+						{member.nickname}
+					</span>
 					{member.isAway && <Moon className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />}
 				</button>
 			</DropdownMenuTrigger>
