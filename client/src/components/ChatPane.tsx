@@ -942,14 +942,8 @@ function MemberRow({
 	const canKick  = myRank >= 2 && myRank > targetRank && !isMe;
 	const canOp    = myRank >= 3 && myRank > targetRank && !isMe;
 
-	return (
-		<div
-			className={cn(
-				"group/member px-2 py-1 text-sm truncate flex items-center gap-2 rounded-sm",
-				member.isAway && "opacity-50",
-			)}
-			title={member.isAway && member.awayMessage ? `Away: ${member.awayMessage}` : undefined}
-		>
+	const rowInner = (
+		<>
 			<span className={cn(
 				"w-3 flex items-center justify-center shrink-0",
 				group.tone,
@@ -960,23 +954,44 @@ function MemberRow({
 						? <User className="h-3 w-3" />
 						: <span className="font-mono text-xs">{group.prefix ?? ""}</span>}
 			</span>
-			<span className={cn("truncate flex-1 min-w-0", isMe ? "text-primary" : nickColor(member.nickname))}>
+			<span className={cn("truncate flex-1 min-w-0 text-left", isMe ? "text-primary" : nickColor(member.nickname))}>
 				{member.nickname}
 			</span>
 			{member.isAway && <Moon className="h-3 w-3 text-muted-foreground shrink-0" />}
-			<DropdownMenu>
-				{/* Explicit trigger button — keeps the row body inert so
-				    swiping to scroll the member list doesn't accidentally
-				    open the menu. */}
+		</>
+	);
+	const rowClass = cn(
+		"px-2 py-1 text-sm truncate flex items-center gap-2 rounded-sm w-full",
+		member.isAway && "opacity-50",
+	);
+	const titleAttr = member.isAway && member.awayMessage ? `Away: ${member.awayMessage}` : undefined;
+
+	return (
+		<DropdownMenu>
+			{/* Desktop: whole row is the trigger.  Single-click opens the
+			    menu — that's the original behavior people expect on a
+			    pointer device. */}
+			<DropdownMenuTrigger asChild>
+				<button type="button" className={cn(rowClass, "hidden sm:flex hover:bg-secondary/50 text-left")} title={titleAttr}>
+					{rowInner}
+				</button>
+			</DropdownMenuTrigger>
+			{/* Mobile: row body is inert (so scrolling the list doesn't
+			    pop the menu); the small `•••` icon at the right is the
+			    trigger.  Always visible since touch devices have no
+			    hover affordance. */}
+			<div className={cn(rowClass, "sm:hidden")} title={titleAttr}>
+				{rowInner}
 				<DropdownMenuTrigger asChild>
 					<button
 						type="button"
-						className="shrink-0 p-1 -mr-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground sm:opacity-0 sm:group-hover/member:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+						className="shrink-0 p-1 -mr-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
 						aria-label={`Actions for ${member.nickname}`}
 					>
 						<MoreHorizontal className="h-3.5 w-3.5" />
 					</button>
 				</DropdownMenuTrigger>
+			</div>
 				<DropdownMenuContent align="end" className="w-44">
 				<DropdownMenuItem onSelect={() => onSend(`/whois ${member.nickname}`)}>
 					<Info className="h-4 w-4" /> Whois
@@ -1022,8 +1037,7 @@ function MemberRow({
 					</>
 				)}
 				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
+		</DropdownMenu>
 	);
 }
 
