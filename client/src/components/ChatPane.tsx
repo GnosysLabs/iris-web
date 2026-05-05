@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { nickColor } from "@/lib/nickColor";
 import { matchSlash, type SlashCommand } from "@/lib/slashCommands";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { Crown, User, MessageSquare, Info, ShieldCheck, ShieldOff, Mic, MicOff, UserMinus, Ban, Moon, Users, MoreHorizontal } from "lucide-react";
 import {
 	DropdownMenu,
@@ -942,6 +943,11 @@ function MemberRow({
 	const canKick  = myRank >= 2 && myRank > targetRank && !isMe;
 	const canOp    = myRank >= 3 && myRank > targetRank && !isMe;
 
+	// Pick which trigger to render based on viewport.  Radix anchors the
+	// menu to the LAST rendered trigger, so we can't have both in the
+	// tree — on desktop the mobile-only `•••` icon (display:none) has
+	// zero bounds and the menu pops at the viewport's top-left corner.
+	const isMobile = useIsMobile();
 	const rowInner = (
 		<>
 			<span className={cn(
@@ -968,30 +974,32 @@ function MemberRow({
 
 	return (
 		<DropdownMenu>
-			{/* Desktop: whole row is the trigger.  Single-click opens the
-			    menu — that's the original behavior people expect on a
-			    pointer device. */}
-			<DropdownMenuTrigger asChild>
-				<button type="button" className={cn(rowClass, "hidden sm:flex hover:bg-secondary/50 text-left")} title={titleAttr}>
+			{isMobile ? (
+				// Mobile: row body is inert (so scrolling the list
+				// doesn't pop the menu); the small `•••` icon at the
+				// right is the trigger.  Always visible since touch
+				// devices have no hover affordance.
+				<div className={rowClass} title={titleAttr}>
 					{rowInner}
-				</button>
-			</DropdownMenuTrigger>
-			{/* Mobile: row body is inert (so scrolling the list doesn't
-			    pop the menu); the small `•••` icon at the right is the
-			    trigger.  Always visible since touch devices have no
-			    hover affordance. */}
-			<div className={cn(rowClass, "sm:hidden")} title={titleAttr}>
-				{rowInner}
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className="shrink-0 p-1 -mr-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+							aria-label={`Actions for ${member.nickname}`}
+						>
+							<MoreHorizontal className="h-3.5 w-3.5" />
+						</button>
+					</DropdownMenuTrigger>
+				</div>
+			) : (
+				// Desktop: whole row is the trigger.  Single-click opens
+				// the menu — original behavior on a pointer device.
 				<DropdownMenuTrigger asChild>
-					<button
-						type="button"
-						className="shrink-0 p-1 -mr-1 rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
-						aria-label={`Actions for ${member.nickname}`}
-					>
-						<MoreHorizontal className="h-3.5 w-3.5" />
+					<button type="button" className={cn(rowClass, "hover:bg-secondary/50 text-left")} title={titleAttr}>
+						{rowInner}
 					</button>
 				</DropdownMenuTrigger>
-			</div>
+			)}
 				<DropdownMenuContent align="end" className="w-44">
 				<DropdownMenuItem onSelect={() => onSend(`/whois ${member.nickname}`)}>
 					<Info className="h-4 w-4" /> Whois
