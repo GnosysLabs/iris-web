@@ -39,7 +39,7 @@ jobs:
       - name: Build the client
         run: bun run --cwd client build
 
-      - name: Compile binaries + package tarballs
+      - name: Compile binaries + package archives
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -49,20 +49,30 @@ jobs:
           # this is the desktop app.  Self-hosting iris-web ON a Mac
           # is rare; those folks can build from source if they want to.
           #
-          # Tarball names are version-FREE on purpose — the version
+          # Archive names are version-FREE on purpose — the version
           # lives in the URL path (.../releases/v0.1.0/iris-web-linux-x64.tar.gz
           # vs .../releases/latest/download/iris-web-linux-x64.tar.gz).
           # A stable filename means the README's curl-install one-liner
           # works against `/latest/` forever without a rewrite per bump.
-          for target in linux-arm64 linux-x64; do
+          #
+          # Windows ships as .zip (the OS-native archive format) and the
+          # binary is irisweb.exe.  iris-windows's Tauri build pipeline
+          # pulls this zip during CI to bundle the sidecar.
+          for target in linux-arm64 linux-x64 windows-x64; do
             echo "::group::Building $target"
             outdir="dist/iris-web-$target"
             mkdir -p "$outdir"
 
+            if [[ "$target" == windows-* ]]; then
+              binary="irisweb.exe"
+            else
+              binary="irisweb"
+            fi
+
             # Cross-compile the server to a single static binary.
             bun build --compile \
               --target="bun-$target" \
-              --outfile "$outdir/irisweb" \
+              --outfile "$outdir/$binary" \
               ./server/src/index.ts
 
             # Bundle the static client + license + readme alongside the
@@ -70,15 +80,19 @@ jobs:
             cp -R client/dist "$outdir/iris-web-client"
             cp README.md LICENSE "$outdir/"
 
-            tar -C dist -czf "dist/iris-web-${target}.tar.gz" "iris-web-$target"
+            if [[ "$target" == windows-* ]]; then
+              (cd dist && zip -qr "iris-web-${target}.zip" "iris-web-$target")
+            else
+              tar -C dist -czf "dist/iris-web-${target}.tar.gz" "iris-web-$target"
+            fi
             echo "::endgroup::"
           done
-          ls -lh dist/*.tar.gz
+          ls -lh dist/iris-web-*.tar.gz dist/iris-web-*.zip
 
       - name: Generate SHA256 checksums
         run: |
           cd dist
-          sha256sum *.tar.gz > SHA256SUMS.txt
+          sha256sum iris-web-*.tar.gz iris-web-*.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Publish GitHub Release
@@ -87,5 +101,6 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/*.tar.gz
+            dist/iris-web-*.tar.gz
+            dist/iris-web-*.zip
             dist/SHA256SUMS.txt
