@@ -13,13 +13,21 @@ import { Plus, MessagesSquare, Circle, Settings as SettingsIcon, Sun, Moon, Menu
 import { cn } from "@/lib/utils";
 import { loadSettings, saveSettings, type Settings } from "@/state/settings";
 
-// True when the page is hosted inside Iris.app's WKWebView (set via
-// the `?native=mac` query param the Swift shell appends).  Drives the
-// topbar layout so traffic lights have room to overlay on the left.
-const IS_NATIVE_MAC = (() => {
-	if (typeof window === "undefined") return false;
-	return new URLSearchParams(window.location.search).get("native") === "mac";
+// Native-shell detection.  The desktop wrappers append `?native=<plat>`
+// when loading the iris-web URL inside their webview:
+//   - Iris.app (macOS, WKWebView)        → ?native=mac
+//   - iris-windows (Tauri, WebView2)     → ?native=windows
+//   - iris-linux  (Tauri, WebKitGTK)     → ?native=linux
+// Mac & Windows get a centered-brand topbar and no socket-status dot
+// (Linux keeps the left-aligned brand per user preference).  Mac
+// additionally reserves the top-left for the OS traffic lights.
+const NATIVE_PLATFORM = (() => {
+	if (typeof window === "undefined") return null;
+	return new URLSearchParams(window.location.search).get("native");
 })();
+const IS_NATIVE_MAC = NATIVE_PLATFORM === "mac";
+const IS_NATIVE_WINDOWS = NATIVE_PLATFORM === "windows";
+const IS_NATIVE_DESKTOP_CENTERED = IS_NATIVE_MAC || IS_NATIVE_WINDOWS;
 
 export default function App() {
 	const [state, dispatch] = useReducer(reduce, initialState);
@@ -270,9 +278,9 @@ function TopBar({
 		: "text-destructive fill-destructive";
 	const brand = (
 		<div className="flex items-center gap-2">
-			{/* Mobile-only hamburger.  Hidden on the native Mac shell since
-			    the desktop layout doesn't collapse the sidebar. */}
-			{!IS_NATIVE_MAC && (
+			{/* Mobile-only hamburger.  Hidden on native desktop shells
+			    where the sidebar doesn't collapse. */}
+			{!IS_NATIVE_DESKTOP_CENTERED && (
 				<button
 					type="button"
 					onClick={onOpenSidebar}
@@ -284,7 +292,7 @@ function TopBar({
 			)}
 			<img src="/favicon.png" alt="" className="h-6 w-6 self-center" />
 			<span className="font-display text-base font-semibold tracking-wide">Iris IRC</span>
-			{!IS_NATIVE_MAC && (
+			{!IS_NATIVE_DESKTOP_CENTERED && (
 				<Circle
 					className={cn("h-2 w-2 self-center", tone)}
 					aria-label={`socket ${status}`}
@@ -317,17 +325,19 @@ function TopBar({
 			</Button>
 		</div>
 	);
-	if (IS_NATIVE_MAC) {
-		// Inside Iris.app the OS draws traffic-light controls overlaying
-		// the top-left of the window.  Reserve ~78px on the left so they
-		// have a clean background.  The brand sits dead-center via
-		// absolute positioning so it doesn't drift with action width.
-		// The whole header is a drag region; controls opt out via
-		// `app-no-drag`.
+	if (IS_NATIVE_DESKTOP_CENTERED) {
+		// Native Mac & Windows: brand sits dead-center via absolute
+		// positioning so it doesn't drift with action width.  Mac
+		// additionally reserves ~78px on the left so the OS-drawn
+		// traffic-light controls have a clean background to overlay.
+		// On Mac the entire header is a drag region; controls opt out
+		// via `app-no-drag`.  Windows has its own native title bar
+		// above this header, so the drag-region treatment is harmless
+		// but unused.
 		return (
 			<header
 				className="relative h-12 flex items-center justify-end border-b bg-muted/40 dark:bg-card/30 pr-4 app-drag-region"
-				style={{ paddingLeft: 78 }}
+				style={{ paddingLeft: IS_NATIVE_MAC ? 78 : 16 }}
 			>
 				<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
 					{brand}

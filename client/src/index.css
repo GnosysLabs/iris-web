@@ -72,3 +72,34 @@
 .app-no-drag * {
 	-webkit-app-region: no-drag;
 }
+
+/* Cross-platform overlay-style scrollbars.  Webkit-based browsers
+   (Chrome/Edge/Safari/WebView2/WebKitGTK) and Firefox both render
+   chunky always-visible scrollbars by default on Windows and Linux,
+   which look out of place inside the Tauri shells.  This styles them
+   to be invisible at rest and fade in only when the cursor is over a
+   scrollable region — same UX as macOS auto-hide scrollbars. */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+*:hover {
+	scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+}
+*::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+*::-webkit-scrollbar-track {
+	background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+	background: transparent;
+	border-radius: 4px;
+}
+*:hover::-webkit-scrollbar-thumb {
+	background: hsl(var(--muted-foreground) / 0.3);
+}
+*::-webkit-scrollbar-thumb:hover {
+	background: hsl(var(--muted-foreground) / 0.5);
+}
